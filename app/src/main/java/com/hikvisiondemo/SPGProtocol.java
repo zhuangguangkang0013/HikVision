@@ -1,4 +1,4 @@
-package ziyouniao.zhanyun.com.hikvisiondemo;
+﻿package ziyouniao.zhanyun.com.hikvisiondemo;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -33,7 +33,7 @@ public class SPGProtocol extends Thread {
 //    public final byte[] CAMERA_DATA = {Byte.parseByte(password), 0x01, 0x02};
 
     // ....
-
+//测试测试
     private DatagramSocket socket = null;
     private String Server;
     private int Port;
