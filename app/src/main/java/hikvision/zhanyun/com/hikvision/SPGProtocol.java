@@ -25,13 +25,17 @@ public class SPGProtocol {
     public final byte[] VERSION = {0x01, 0x02};
 
     //摄像机远程调节
-    public final byte[] CAMERA_START_CHAR = {0x68};
-    public final byte[] CAMERA_END_CHAR = {(byte) 0x88};
+//    public final byte[] CAMERA_START_CHAR = {0x68};
+//    public final byte[] CAMERA_END_CHAR = {(byte) 0x88};
     public final byte[] CAMERA_POWERON_CHAR = {0x00};
     public final byte[] CAMERA_POWERON_VERSION = {0x01, 0x02};
 //    String password = "1234";
 //    public final byte[] CAMERA_DATA = {Byte.parseByte(password), 0x01, 0x02};
 
+    // 图像采集参数配置
+    public final byte[] IMAGE_CONFIG_CONTROL_CHAR = {0x68};
+    public final byte[] IMAGE_CONFIG_DATA_FIELD = new byte[]{};
+    private final byte[] IMAGE_CONFIG_CHECK_CODE = new byte[]{};
     // ....
 
     private DatagramSocket socket = null;
@@ -46,6 +50,71 @@ public class SPGProtocol {
     private byte[] mSendData;
     private byte[] mReceiveData;
 
+
+    private byte[] imageConfig() {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try {
+            bos.write("1234".getBytes());
+            bos.write(outputStream());
+            bos.write(outputStream());
+            bos.close();
+            return bos.toByteArray();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+
+    private byte[] outputStream() {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try {
+            bos.write(new byte[]{0x01});
+            bos.write(new byte[]{0x02});
+            bos.write(new byte[]{0x01});
+            bos.write(new byte[]{0x010});
+            bos.write(new byte[]{0x020});
+            int i = bos.size();
+            bos.close();
+            return bos.toByteArray();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+
+    }
+
+    private byte[] result(byte[] order) {
+        // 数据存储区
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream buf_stream = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bos);
+        try {
+            out.write(deviceID.getBytes());
+            out.write(controlChar);
+            short len = (short) version.length;
+
+            out.writeShort(len);
+            out.write(imageConfig());
+            byte[] checkCode = {Crc(bos.toByteArray())};
+
+            buf_stream.write(startChar);
+            buf_stream.write(bos.toByteArray());
+            buf_stream.write(checkCode);
+            buf_stream.write(endChar);
+            buf_stream.close();
+            return buf_stream.toByteArray();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * 设置回调
+     *
+     * @param listenerCallBack 回调接口
+     */
     public SPGProtocol(UdpListenerCallBack listenerCallBack) {
         this.listenerCallBack = listenerCallBack;
     }
@@ -88,27 +157,28 @@ public class SPGProtocol {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                // 数据存储区
-                ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                ByteArrayOutputStream buf_stream = new ByteArrayOutputStream();
-                DataOutputStream out = new DataOutputStream(bos);
+//                // 数据存储区
+//                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+//                ByteArrayOutputStream buf_stream = new ByteArrayOutputStream();
+//                DataOutputStream out = new DataOutputStream(bos);
 
                 try {
-                    out.write(deviceID.getBytes());
-                    out.write(controlChar);
+//
+//                    out.write(deviceID.getBytes());
+//                    out.write(controlChar);
+//
+//                    short len = (short) version.length;
+//
+//                    out.writeShort(len);
+//                    out.write(version);
+//                    byte[] c = {Crc(bos.toByteArray())};
+//
+//                    buf_stream.write(startChar);
+//                    buf_stream.write(bos.toByteArray());
+//                    buf_stream.write(c);
+//                    buf_stream.write(endChar);
 
-                    short len = (short) version.length;
-
-                    out.writeShort(len);
-                    out.write(version);
-                    byte[] c = {Crc(bos.toByteArray())};
-
-                    buf_stream.write(startChar);
-                    buf_stream.write(bos.toByteArray());
-                    buf_stream.write(c);
-                    buf_stream.write(endChar);
-
-                    byte[] buf = buf_stream.toByteArray();
+                    byte[] buf = result(new byte[]{(byte) 0x81});
 
                     if (socket == null) socket = new DatagramSocket();
 
@@ -119,9 +189,9 @@ public class SPGProtocol {
                     listenerCallBack.sendSuccess();
 
                     mSendData = buf;
-                    bos.close();
-                    buf_stream.close();
-                    out.close();
+//                    bos.close();
+//                    buf_stream.close();
+//                    out.close();
                 } catch (IOException e) {
                     e.printStackTrace();
                     listenerCallBack.onErrMsg(e.toString());
@@ -175,9 +245,14 @@ public class SPGProtocol {
     }
 
 
-    private void handlerOrder(byte bytes) {
+    /**
+     * 处理命令
+     *
+     * @param order 命令
+     */
+    private void handlerOrder(byte order) {
 
-        switch (bytes) {
+        switch (order) {
             case 0x00:
                 int count = 0;
                 for (int i = 0; i < 8; i++) {
