@@ -1,4 +1,4 @@
-package ziyouniao.zhanyun.com.hikvisiondemo;
+package hikvision.zhanyun.com.hikvision;
 
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -52,21 +52,20 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     }
 
 
-
     public void btnTest(View view) {
 
-//        spgProtocol.startRunnable();
+//        spgProtocol.receive();
     }
 
     @Override
     public void sendSuccess() {
-        UdpUtil.getInstance(this).receiveMsg();
+//        UdpUtil.getInstance(this).receiveMsg();
     }
 
     @Override
     public void receiveSuccess(String message) {
-        hikVisionUtils.onPTZControl(1, m_iLogId, Integer.parseInt(message));
-        UdpUtil.getInstance(this).sendMsg(message);
+//        hikVisionUtils.onPTZControl(1, m_iLogId, Integer.parseInt(message));
+//        UdpUtil.getInstance(this).sendMsg(message);
     }
 
     @Override

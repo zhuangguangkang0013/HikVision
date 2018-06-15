@@ -1,4 +1,4 @@
-package ziyouniao.zhanyun.com.hikvisiondemo;
+package hikvision.zhanyun.com.hikvision;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -11,7 +11,7 @@ import java.net.InetSocketAddress;
  * Created by ZY004Engineer on 2018/6/12.
  */
 
-public class SPGProtocol extends Thread {
+public class SPGProtocol {
     private byte[] startChar = {0x68};
     private byte[] endChar = {0x16};
     private byte[] controlChar = {0x00};
@@ -174,14 +174,10 @@ public class SPGProtocol extends Thread {
 
     }
 
-    /**
-     * 处理命令
-     *
-     * @param order 命令
-     */
-    private void handlerOrder(byte order) {
 
-        switch (order) {
+    private void handlerOrder(byte bytes) {
+
+        switch (bytes) {
             case 0x00:
                 int count = 0;
                 for (int i = 0; i < 8; i++) {
@@ -193,11 +189,10 @@ public class SPGProtocol extends Thread {
                 else listenerCallBack.onErrMsg("-1");
                 break;
             case 0x01:
-                //TODO 操作。。。
+                //TODO 操作。。。??
                 break;
             //...
         }
 
     }
-
 }

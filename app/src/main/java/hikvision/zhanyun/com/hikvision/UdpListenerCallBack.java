@@ -1,4 +1,4 @@
-package ziyouniao.zhanyun.com.hikvisiondemo;
+package hikvision.zhanyun.com.hikvision;
 
 /**
  * Created by ZY004Engineer on 2018/6/12.

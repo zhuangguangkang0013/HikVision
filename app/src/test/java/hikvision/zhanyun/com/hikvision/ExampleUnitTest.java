@@ -1,4 +1,4 @@
-package ziyouniao.zhanyun.com.hikvisiondemo;
+package hikvision.zhanyun.com.hikvision;
 
 import org.junit.Test;
 

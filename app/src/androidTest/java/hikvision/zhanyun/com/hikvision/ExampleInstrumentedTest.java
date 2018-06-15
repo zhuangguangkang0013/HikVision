@@ -1,4 +1,4 @@
-package ziyouniao.zhanyun.com.hikvisiondemo;
+package hikvision.zhanyun.com.hikvision;
 
 import android.content.Context;
 import android.support.test.InstrumentationRegistry;
