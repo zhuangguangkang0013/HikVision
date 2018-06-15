@@ -42,11 +42,13 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 //        UdpUtil.getInstance(this).setListenReceiveStatus(true);
 
 //        handler.sendEmptyMessage(1);
-        SPGProtocol spgProtocol = new SPGProtocol();
-//        spgProtocol.Init("171.221.207.59", 17116, "123456");
-        spgProtocol.Init("10.18.67.225", 8989, "123456");
+        SPGProtocol spgProtocol = new SPGProtocol(this);
+        spgProtocol.InitUdp("171.221.207.59", 17116,"123456");
+        spgProtocol.initFormat(spgProtocol.START_CHAR, spgProtocol.POWERON_CHAR,
+                spgProtocol.VERSION, spgProtocol.END_CHAR);
+//        spgProtocol.InitUdp("10.18.67.225", 8989, "123456");
         spgProtocol.PowerOn();
-        spgProtocol.startRunnable();
+        spgProtocol.receive();
     }
 
 
