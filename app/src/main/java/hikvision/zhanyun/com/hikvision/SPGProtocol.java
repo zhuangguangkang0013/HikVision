@@ -3,6 +3,8 @@ package hikvision.zhanyun.com.hikvision;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.SystemClock;
+import android.content.Intent;
+import android.provider.ContactsContract;
 import android.util.Log;
 
 import com.hikvision.netsdk.NET_DVR_TIME;
@@ -11,9 +13,16 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+import static android.content.ContentValues.TAG;
+import static android.text.TextUtils.isEmpty;
 
 /**
  * Created by ZY004Engineer on 2018/6/12.
@@ -21,29 +30,42 @@ import java.net.InetSocketAddress;
 
 public class SPGProtocol {
 
-    public static final byte ORDER_00H = 0x00;
-    public static final byte ORDER_01H = 0x01;
-    public static final byte ORDER_02H = 0x02;
-    public static final byte ORDER_03H = 0x03;
-    public static final byte ORDER_04H = 0x04;
-    public static final byte ORDER_05H = 0x05;
-    public static final byte ORDER_06H = 0x06;
+    public static final byte ORDER_00H =0x00;
+    public static final byte ORDER_01H =0x01;
+    public static final byte ORDER_02H =0x02;
+    public static final byte ORDER_03H =0x03;
+    public static final byte ORDER_04H =0x04;
+    public static final byte ORDER_05H =0x05;
+    public static final byte ORDER_06H =0x06;
     public static final byte ORDER_86H = (byte) 0x86;
-    public static final byte ORDER_85H = (byte) 0x85;
 
+
+    private HikVisionUtils hikVisionUtils = new HikVisionUtils();
+    private String datetime;
+    public String datetimes;
     private byte[] startChar = {0x68};
     private byte[] endChar = {0x16};
     private byte[] controlChar = {0x00};
     private int maxPacketLength = 5000;
     private byte[] version = {0x01, 0x02};
 
-    //开机联络信息 00H
-    private final byte[] START_CHAR = {0x68};
-    private final byte[] END_CHAR = {0x16};
-    private final byte[] VERSION = {0x01, 0x02};
+    //
+    public final byte[] START_CHAR = {0x68};
+    public final byte[] END_CHAR = {0x16};
+    public final byte[] POWERON_CHAR = {0x00};
+    public final byte[] VERSION = {0x01, 0x02};
 
-    //校时 01H
-    private final byte[] WHEN_THE_SCHOOL_VERSION = {};
+
+    //摄像机远程调节
+    //    public final byte[] CAMERA_START_CHAR = {0x68};
+    //    public final byte[] CAMERA_END_CHAR = {(byte) 0x88};
+    public final byte[] CAMERA_POWERON_CHAR = {0x00};
+    public final byte[] CAMERA_POWERON_VERSION = {0x01, 0x02};
+
+
+    //校时功能
+    public  byte[] WHEN_THE_SCHOOL_VERSION = {};
+
 
     //设置终端密码 02H
     private final byte[] TERMINAL_PWD_ORDER = {0x02};
@@ -53,28 +75,11 @@ public class SPGProtocol {
     private byte[] signalStrength = new byte[0];
     private byte[] batteryVoltage = new byte[0];
 
-    //上传图像数据 85H
-
-
-    //主站下发参数配置 03H
 
     // 图像采集参数配置
     public final byte[] IMAGE_CONFIG_CONTROL_CHAR = {0x68};
-
-
     public final byte[] IMAGE_CONFIG_DATA_FIELD = new byte[]{};
     private final byte[] IMAGE_CONFIG_CHECK_CODE = new byte[]{};
-
-    //    private final byte[]
-//校时功能
-//摄像机远程调节
-//    public final byte[] CAMERA_START_CHAR = {0x68};
-//    public final byte[] CAMERA_END_CHAR = {(byte) 0x88};
-    public final byte[] CAMERA_POWERON_CHAR = {0x00};
-    public final byte[] CAMERA_POWERON_VERSION = {0x01, 0x02};
-    //    String password = "1234";
-//    public final byte[] CAMERA_DATA = {Byte.parseByte(password), 0x01, 0x02};
-    private final byte[] WHEN_THE_SCHOOL_START_CHAR = {0x68};
 
     // ....
 
@@ -88,14 +93,14 @@ public class SPGProtocol {
 
     //判断发送数据与接收数据相同
     private byte[] mSendData;
-    private byte[] mReceiveData;
+    public byte[] mReceiveData;
 
-    public byte order;
 
-    public void setOrder(byte order) {
+    public byte[] order=new byte[]{};
+    public void setOrder( byte[] order) {
         this.order = order;
-        controlChar = new byte[]{order};
     }
+
 
     /**
      * @return 返回所需要的数据
@@ -106,19 +111,15 @@ public class SPGProtocol {
         ByteArrayOutputStream buf_stream = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(bos);
         try {
-
             out.write(deviceID.getBytes());
-            out.write(controlChar);
+            out.write(order);
             baleDataChar(out);
             byte[] checkCode = {Crc(bos.toByteArray())};
-
-            buf_stream.write(START_CHAR);
+            buf_stream.write(startChar);
             buf_stream.write(bos.toByteArray());
             buf_stream.write(checkCode);
-            buf_stream.write(END_CHAR);
+            buf_stream.write(endChar);
             buf_stream.close();
-            out.close();
-            bos.close();
             return buf_stream.toByteArray();
         } catch (IOException e) {
             e.printStackTrace();
@@ -133,16 +134,17 @@ public class SPGProtocol {
      */
     private void baleDataChar(DataOutputStream outputStream) {
         try {
-            switch (order) {
-                case ORDER_00H:
-                    outputStream.writeShort(VERSION.length);
-                    outputStream.write(VERSION);
+            switch (order[0]) {
+                case 0x00:
+                    outputStream.writeShort(version.length);
+                    outputStream.write(version);
                     break;
-                case ORDER_01H:
+                case 0x01:
+                    datetime = hikVisionUtils.getNetDvrTime().ToString();
                     outputStream.writeShort(WHEN_THE_SCHOOL_VERSION.length);
                     outputStream.write(WHEN_THE_SCHOOL_VERSION);
                     break;
-                case ORDER_05H:
+                case 0x05:
                     if (HikVisionUtils.getInstance().getNetDvrTime() != null) {
                         NET_DVR_TIME netDvrTime = HikVisionUtils.getInstance().getNetDvrTime();
 
@@ -218,40 +220,25 @@ public class SPGProtocol {
         addr = new InetSocketAddress(Server, Port);
     }
 
-    /**
-     * 初始参数的格式
-     *
-     * @param startChar 起始码 {0x68}
-     * @param version   数据域（规约版本号）  {0x01, 0x02}
-     * @param endChar   结束码 {0x16}
-     */
-    public void initFormat(byte[] startChar, byte[] version, byte[] endChar) {
-        this.startChar = startChar;
-        this.version = version;
-        this.endChar = endChar;
-    }
-
 
     /**
      * upd发送
      */
     public void PowerOn() {
-        new Thread(new Runnable() {
+
+      new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-
                     byte[] buf = result();
-
                     if (socket == null) socket = new DatagramSocket();
-
-                    DatagramPacket outPacket = new DatagramPacket(buf, buf.length, addr);
-
+                     DatagramPacket outPacket = new DatagramPacket(buf, buf.length, addr);
                     socket.send(outPacket);
-
-                    SystemClock.sleep(10);
                     listenerCallBack.sendSuccess();
                     mSendData = buf;
+
+
+                    Log.i(TAG, "发送时间: "+datetime);
                 } catch (IOException e) {
                     e.printStackTrace();
                     listenerCallBack.onErrMsg(e.toString());
@@ -273,7 +260,7 @@ public class SPGProtocol {
         int r = 0;
         byte b = 0;
         for (int i = 0; i < data.length; i++) r += data[i];
-        b = (byte) (r & 0x00FF);
+        b = (byte) (r & 0xFF);
         b = (byte) ~b;
         return b;
     }
@@ -282,27 +269,42 @@ public class SPGProtocol {
      * udp 接收
      */
     public void receive() {
-        new Thread(new Runnable() {
+     new Thread(new Runnable() {
             @Override
             public void run() {
 
                 while (true) {
                     if (socket == null) continue;
+
                     byte[] buf = new byte[maxPacketLength];
                     DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
                     try {
+
                         socket.receive(receivePacket);
+                        if (order[0] == 0x00) {
+                            if (receivePacket.getData() == null) {
+                                listenerCallBack.onErrMsg("-1");
+                            }
+                        } else if (order[0] == 0x01) {
+                            if (receivePacket.getData() == null) {
+                                listenerCallBack.onErrMsg("-2");
+                            }
+                        }
                         mReceiveData = receivePacket.getData();
+
+                        if(order[0] == 0x01||order[0] ==0x05)
+                        datetimes = hikVisionUtils.getNetDvrTime().ToString();
                         handlerOrder(mReceiveData[7]);
+
+                        Log.i(TAG, "接收时间: "+datetimes);
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
                 }
-            }
-        }).start();
+        }
 
+    }).start();
     }
-
 
     /**
      * 处理命令
@@ -312,16 +314,36 @@ public class SPGProtocol {
     private void handlerOrder(byte order) {
 
         switch (order) {
-            case ORDER_00H:
+            case 0x00:
                 if (proofOrder()) listenerCallBack.receiveSuccess(order);
                 else listenerCallBack.onErrMsg("-1");
                 break;
-            case ORDER_01H:
+            case 0x01:
                 if (proofOrder()) listenerCallBack.receiveSuccess(order);
-                else listenerCallBack.onErrMsg("-1");
-                //TODO 操作。。。
+                if(datetime!=null&&datetimes!=null){
+                Date date = new Date(datetime);//发送请求的时间
+                Date dates = new Date(datetimes);//接受到返回值的时间
+                int handlerOrder = getTimeDelta(date,dates);
+                Log.i(TAG, "handlerOrder: "+getTimeDelta(date,dates));
+                Log.i(TAG, "handlerOrder: "+date);
+                Log.i(TAG, "handlerOrder: "+dates);
+               if(handlerOrder < 20){
+                Boolean setTimer = hikVisionUtils.setDateTime(mReceiveData[10]+2000,
+                                                                        mReceiveData[11],
+                                                                        mReceiveData[12],
+                                                                        mReceiveData[13],
+                                                                        mReceiveData[14],
+                                                                        mReceiveData[15]);
+                Log.i(TAG, "run: "+hikVisionUtils.getNetDvrTime().ToString());
+                if(!setTimer){
+                    listenerCallBack.onErrMsg("-2");
+                }
+        }else {
+                   listenerCallBack.onErrMsg("-2");
+
+               }}
                 break;
-            case ORDER_02H:
+            case 0x02:
                 listenerCallBack.receiveSuccess(order);
                 String oldPassword = String.valueOf(mReceiveData[10] + mReceiveData[11] + mReceiveData[12] + mReceiveData[13]);
 
@@ -329,14 +351,29 @@ public class SPGProtocol {
                     listenerCallBack.receiveSuccess(order);
                 }
                 break;
-            case ORDER_03H:
+            case 0x03:
+
                 break;
-            case ORDER_05H:
-                if (proofOrder()) listenerCallBack.receiveSuccess(order);
-                break;
-            //
+            case 0x05:
+                listenerCallBack.receiveSuccess(order);
+                    Boolean setTimer = hikVisionUtils.setDateTime(mReceiveData[10]+2000,
+                            mReceiveData[11],
+                            mReceiveData[12],
+                            mReceiveData[13],
+                            mReceiveData[14],
+                            mReceiveData[15]);
+                Log.i(TAG, "handlerOrder: "+setTimer);
+                Log.i(TAG, "run: "+hikVisionUtils.getNetDvrTime().ToString());
+                    break;
+                //...
         }
 
+    }
+    //计算两个日期时间差
+    public static int getTimeDelta(Date date1,Date date2){
+        long timeDelta=(date1.getTime()-date2.getTime())/1000;//单位是秒
+        int secondsDelta=timeDelta>0?(int)timeDelta:(int)Math.abs(timeDelta);
+        return secondsDelta;
     }
 
     /**
@@ -353,4 +390,6 @@ public class SPGProtocol {
         }
         return count == 8;
     }
+
+
 }
