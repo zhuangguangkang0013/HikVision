@@ -127,6 +127,10 @@ public class SPGProtocol {
         }
     }
 
+	private void test2(String s)
+	{
+	}
+	
     /**
      * 打包 数据域
      *
