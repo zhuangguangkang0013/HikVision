@@ -376,6 +376,9 @@ public class SPGProtocol {
         return secondsDelta;
     }
 
+	
+	private Boolean Test() {
+	}
     /**
      * 验证发送数据与接收数据是否一致
      *
