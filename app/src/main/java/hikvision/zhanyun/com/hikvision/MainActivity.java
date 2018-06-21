@@ -17,6 +17,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private int m_iLogId;
     private SPGProtocol spgProtocol;
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
+    public Handler mHanlder = new Handler();
     private static String[] PERMISSIONS_STORAGE = {
             "android.permission.READ_EXTERNAL_STORAGE",
             "android.permission.WRITE_EXTERNAL_STORAGE"};
@@ -51,6 +52,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         spgProtocol = new SPGProtocol(this);
         spgProtocol.InitUdp("171.221.207.59", 17116, "123456");
         mHanlder.postDelayed(boot, 0);
+
+
+        Log.i(TAG, "onCreate: "+ hikVisionUtils.getNetDvrTime().ToString());
     }
 
     public static void verifyStoragePermissions(Activity activity) {
@@ -84,19 +88,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         }
     };
 
-    public Handler mHanlder = new Handler();
-    private Runnable task = new Runnable() {
-        @Override
-        public void run() {
-            spgProtocol.setOrder(SPGProtocol.ORDER_00H);
-            spgProtocol.PowerOn();
-            spgProtocol.receive();
-            //若无接收到服务器返回的信息。延迟5秒,再次执行发送开机请求直到接受到服务器返回值,
-            mHanlder.postDelayed((Runnable) this, 120 * 1000);
-            Log.i(TAG, "服务器没有返回信息");
-            mHanlder.postDelayed(task, 2000);  //启动。后面的数字是延时多久执行
-        }
-    };
+
 
     @Override
     public void sendSuccess() {
@@ -130,7 +122,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             spgProtocol.setOrder(SPGProtocol.ORDER_85H);
             spgProtocol.PowerOn();
 
-            
+
 
         }else if (order == SPGProtocol.ORDER_86H) {
 
@@ -176,6 +168,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         }else if(message==SPGProtocol.ERR_ORDER_01H){
             //若无接受到服务器返回的信息，延迟 分钟，再次执行-校时-请求直到接收到服务器的返回值
             mHanlder.postDelayed(WhenTheSchool, 1000);
+        }else if(message == SPGProtocol.ERR_ORDER_05H){
+            //若无接受到服务器返回的信息，延迟 分钟，再次执行-心跳包-请求直到接收到服务器的返回值
+            mHanlder.postDelayed(TheHeartbeatPackets,1000);
         }
     }
 
