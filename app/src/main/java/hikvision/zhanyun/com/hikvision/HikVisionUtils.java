@@ -1,11 +1,16 @@
 package hikvision.zhanyun.com.hikvision;
 
+import android.os.Environment;
 import android.util.Log;
 
 import com.hikvision.netsdk.ExceptionCallBack;
 import com.hikvision.netsdk.HCNetSDK;
 import com.hikvision.netsdk.NET_DVR_DEVICEINFO_V30;
+import com.hikvision.netsdk.NET_DVR_JPEGPARA;
+import com.hikvision.netsdk.NET_DVR_TIME;
 import com.hikvision.netsdk.PTZCommand;
+
+import java.io.File;
 
 /**
  * Created by ZY004Engineer on 2018/6/11.
@@ -15,6 +20,9 @@ public class HikVisionUtils {
 
     private String TAG = HikVisionUtils.class.getSimpleName();
     private static HikVisionUtils mInstance = null;
+    private int mLoginId = -1;
+    public static String FILE_PATH = null;
+    private NET_DVR_TIME netDvrTime = new NET_DVR_TIME();
 
     public static HikVisionUtils getInstance() {
 
@@ -39,7 +47,7 @@ public class HikVisionUtils {
             Log.e(TAG, "HCNetSDK init is failed!" + HCNetSDK.getInstance().NET_DVR_GetLastError());
             return false;
         }
-        String logFilePath = "/mnt/sdcard/sdklog/";
+        String logFilePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionSDKLog/";
         //nLogLevel[in] 日志的等级（默认为0）：
         // 0-表示关闭日志，1-表示只输出ERROR错误日志，
         // 2-输出ERROR错误信息和DEBUG调试信息，
@@ -82,7 +90,42 @@ public class HikVisionUtils {
 //                    + m_oNetDvrDeviceInfoV30.byHighDChanNum * 256;
 //        }
         Log.i(TAG, "NET_DVR_Login is Successful!");
+        mLoginId = iLogID;
         return iLogID;
+    }
+
+
+    /**
+     * @param dwYear   年
+     * @param dwMonth  月
+     * @param dwDay    日
+     * @param dwHour   时
+     * @param dwMinute 分
+     * @param dwSecond 秒
+     * @return ture 或者 flas  ture表示成功  flas表示失败
+     */
+    boolean setDateTime(int dwYear, int dwMonth, int dwDay, int dwHour, int dwMinute, int dwSecond) {
+        if (netDvrTime == null) netDvrTime = new NET_DVR_TIME();
+        netDvrTime.dwYear = dwYear;
+        netDvrTime.dwMonth = dwMonth;
+        netDvrTime.dwDay = dwDay;
+        netDvrTime.dwHour = dwHour;
+        netDvrTime.dwMinute = dwMinute;
+        netDvrTime.dwSecond = dwSecond;
+        return HCNetSDK.getInstance()
+                .NET_DVR_SetDVRConfig(mLoginId, HCNetSDK.NET_DVR_SET_TIMECFG,
+                        0xFFFFFFFF, netDvrTime);
+    }
+
+    /**
+     * @return 获取设备时间对象
+     */
+    public NET_DVR_TIME getNetDvrTime() {
+        if (netDvrTime == null) netDvrTime = new NET_DVR_TIME();
+        if (mLoginId != -1)
+            HCNetSDK.getInstance()
+                    .NET_DVR_GetDVRConfig(mLoginId, HCNetSDK.NET_DVR_GET_TIMECFG, 0, netDvrTime);
+        return netDvrTime;
     }
 
 
@@ -152,5 +195,22 @@ public class HikVisionUtils {
         }
     }
 
+
+    /**
+     * 拍照并保存照片
+     *
+     * @return true成功，则失败
+     */
+    public boolean onCaptureJPEGPicture() {
+        NET_DVR_JPEGPARA netDvrJpegpara = new NET_DVR_JPEGPARA();
+
+        String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/";
+        File file = new File(filePath);
+        if (!file.exists()) {
+            file.mkdirs();
+        }
+        FILE_PATH = filePath + "picture.jpg";
+        return HCNetSDK.getInstance().NET_DVR_CaptureJPEGPicture(mLoginId, 1, netDvrJpegpara, FILE_PATH);
+    }
 
 }
