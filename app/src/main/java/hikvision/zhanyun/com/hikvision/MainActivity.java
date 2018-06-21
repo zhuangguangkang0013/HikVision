@@ -104,26 +104,34 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
     @Override
     public void receiveSuccess(byte order) {
-
-        //成功后停止定时循环发送开机请求
         if (order == SPGProtocol.ORDER_00H){
+            //成功后停止定时循环发送开机请求
             mHanlder.removeCallbacks(boot);
             Log.i(TAG, "服务器返回了信息停止向服务器发送开机请求");
+            //开启校时功能
             mHanlder.postDelayed(WhenTheSchool,1000);
         }else if (order == SPGProtocol.ORDER_01H){
+            //校时成功后停止校时功能
             mHanlder.removeCallbacks(WhenTheSchool);
-            mHanlder.postDelayed(TheHeartbeatPackets,2*60000);
+            //开启心跳包
+            mHanlder.postDelayed(TheHeartbeatPackets,1000);
         }else if(order == SPGProtocol.ORDER_05H){
+            //停止心跳包
             mHanlder.removeCallbacks(TheHeartbeatPackets);
+            //开启定时发送心跳包
             mHanlder.postDelayed(TheHeartbeatPacketss,0);
+
+            //测试拍照
             Boolean is = hikVisionUtils.onCaptureJPEGPicture();
             if (!is) {
                 HCNetSDK.getInstance().NET_DVR_GetLastError();
                 Log.e(TAG, "receiveSuccess: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
             }
-
             spgProtocol.setOrder(SPGProtocol.ORDER_85H);
             spgProtocol.PowerOn();
+
+            
+
         }else if (order == SPGProtocol.ORDER_86H) {
 
         }
@@ -162,11 +170,11 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     @Override
     public void onErrMsg(int message) {
         if(message==SPGProtocol.ERR_ORDER_00H){
-            //若无接收到服务器返回的信息。延迟2分钟,再次执行发送开机请求直到接收到服务器返回值,
+            //若无接收到服务器返回的信息。延迟2分钟,再次执行发送-开机-请求直到接收到服务器返回值,
             mHanlder.postDelayed((Runnable) this, 1000);
             Log.i(TAG, "服务器没有返回信息");
         }else if(message==SPGProtocol.ERR_ORDER_01H){
-            //若无接受到服务器返回的信息，延迟 分钟，再次执行校时请求直到接收到服务器的返回值
+            //若无接受到服务器返回的信息，延迟 分钟，再次执行-校时-请求直到接收到服务器的返回值
             mHanlder.postDelayed(WhenTheSchool, 1000);
         }
     }

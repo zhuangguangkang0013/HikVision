@@ -376,7 +376,6 @@ public class SPGProtocol {
         new Thread(new Runnable() {
             @Override
             public void run() {
-
                 while (true) {
                     if (socket == null) continue;
                     byte[] buf = new byte[maxPacketLength];
@@ -403,7 +402,6 @@ public class SPGProtocol {
      * @param order 命令
      */
     private void handlerOrder(byte order) {
-
         switch (order) {
             case ORDER_00H:
                 if (proofOrder()) listenerCallBack.receiveSuccess(order);
@@ -443,7 +441,6 @@ public class SPGProtocol {
             case ORDER_04H:
                 break;
             case ORDER_05H:
-
                 Boolean isSuccess = HikVisionUtils.getInstance().setDateTime(mReceiveData[10] + 2000,
                         mReceiveData[11],
                         mReceiveData[12],
