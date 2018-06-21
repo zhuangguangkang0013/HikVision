@@ -1,9 +1,13 @@
 package hikvision.zhanyun.com.hikvision;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.SystemClock;
+import android.util.Log;
 
 import com.hikvision.netsdk.NET_DVR_TIME;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -158,11 +162,25 @@ public class SPGProtocol {
                     }
                     break;
                 case ORDER_85H:
+
+                    Bitmap bitmap = BitmapFactory.decodeFile(HikVisionUtils.FILE_PATH);
+
                     short pictureLength = 18;
                     outputStream.writeShort(pictureLength);
                     outputStream.write(new byte[]{1});
                     outputStream.write(new byte[]{(byte) 255});
-                    outputStream.write(new byte[]{});
+                    outputStream.write(new byte[]{1});
+
+//                    FileReader fr = new FileReader(HikVisionUtils.FILE_PATH);
+
+                    ByteArrayInputStream inputStream = new ByteArrayInputStream(Bitmap2Bytes(bitmap));
+
+                    while (inputStream.read() != -1) {
+//                        DataOutputStream outputStream1 = new DataOutputStream(byteArrayOutputStream);
+//                        fr.read(outputStream1., 0, Bitmap2Bytes(bitmap).length);
+                        Log.e("1233", "baleDataChar: " + inputStream.read(Bitmap2Bytes(bitmap),0,4000));
+                    }
+
                     break;
             }
         } catch (IOException e) {
@@ -170,6 +188,11 @@ public class SPGProtocol {
         }
     }
 
+    byte[] Bitmap2Bytes(Bitmap bm) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        bm.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+        return baos.toByteArray();
+    }
 //    private void
 
     /**
