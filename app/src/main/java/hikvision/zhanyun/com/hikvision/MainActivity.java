@@ -108,10 +108,16 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             //开启心跳包
             mHanlder.postDelayed(TheHeartbeatPackets,1000);
         }else if(order == SPGProtocol.ORDER_05H){
-            //停止心跳包
-            mHanlder.removeCallbacks(TheHeartbeatPackets);
-            //开启定时发送心跳包
-            mHanlder.postDelayed(TheHeartbeatPacketss,0);
+               //判断心跳包返回的指令  如果是原指令择每隔两分钟发送一次心跳
+            if(spgProtocol.mReceiveData != null && spgProtocol.mReceiveData[7] ==SPGProtocol.ORDER_05H) {
+                Log.i(TAG, "run: "+spgProtocol.mReceiveData[7]);
+                mHanlder.postDelayed(TheHeartbeatPackets, 120*1000);
+            }else {
+                //否则关闭心跳包,两分钟后再重新开启定时心跳线程
+                mHanlder.removeCallbacks(TheHeartbeatPackets);
+                mHanlder.postDelayed(TheHeartbeatPackets, 120*1000);
+            }
+
 
             //测试拍照
             Boolean is = hikVisionUtils.onCaptureJPEGPicture();
@@ -129,26 +135,18 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         }
     }
 
-    //心跳包线程
+    //定时发送心跳包
     public Runnable TheHeartbeatPackets = new Runnable() {
         @Override
         public void run() {
-            hikVisionUtils.getNetDvrTime();
             spgProtocol.setOrder(SPGProtocol.ORDER_05H);
             spgProtocol.PowerOn();
             spgProtocol.receive();
         }
     };
 
-    //定时发送心跳包
-    public Runnable TheHeartbeatPacketss = new Runnable() {
-        @Override
-        public void run() {
-            spgProtocol.setOrder(SPGProtocol.ORDER_05H);
-            spgProtocol.PowerOn();
-            mHanlder.postDelayed(TheHeartbeatPacketss,1000);
-        }
-    };
+
+
 
     //主动校时线程
     public Runnable WhenTheSchool = new Runnable() {
@@ -161,9 +159,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
     @Override
     public void onErrMsg(int message) {
-        if(message==SPGProtocol.ERR_ORDER_00H){
+        if(message==SPGProtocol.ERR_ORDER_00H && spgProtocol.mReceiveData == null){
             //若无接收到服务器返回的信息。延迟2分钟,再次执行发送-开机-请求直到接收到服务器返回值,
-            mHanlder.postDelayed((Runnable) this, 1000);
+            mHanlder.postDelayed(boot, 1000);
             Log.i(TAG, "服务器没有返回信息");
         }else if(message==SPGProtocol.ERR_ORDER_01H){
             //若无接受到服务器返回的信息，延迟 分钟，再次执行-校时-请求直到接收到服务器的返回值

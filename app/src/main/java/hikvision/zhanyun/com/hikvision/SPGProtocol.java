@@ -105,7 +105,7 @@ public class SPGProtocol {
 
     //判断发送数据与接收数据相同
     private byte[] mSendData;
-    private byte[] mReceiveData;
+    public byte[] mReceiveData;
 
     public byte order;
 
@@ -164,8 +164,10 @@ public class SPGProtocol {
         try {
             switch (order) {
                 case ORDER_00H:
-                    outputStream.writeShort(VERSION.length);
-                    outputStream.write(VERSION);
+                    //主动开机
+                        outputStream.writeShort(VERSION.length);
+                        outputStream.write(VERSION);
+
                     break;
                 case ORDER_01H:
                     //主动校时
@@ -174,8 +176,8 @@ public class SPGProtocol {
                     outputStream.writeShort(WHEN_THE_SCHOOL_VERSION.length);
                     outputStream.write(WHEN_THE_SCHOOL_VERSION);
                     }else {//
+                         byte a[] = {mReceiveData[10] ,mReceiveData[11],mReceiveData[12],mReceiveData[13],mReceiveData[14],mReceiveData[15]};
                         outputStream.writeShort(WHEN_THE_SCHOOL_VERSION.length);
-                        byte a[] = {mReceiveData[10] ,mReceiveData[11],mReceiveData[12],mReceiveData[13],mReceiveData[14],mReceiveData[15]};
                         outputStream.write(a);
                     }
                     break;
@@ -392,6 +394,7 @@ public class SPGProtocol {
                         mReceiveData = receivePacket.getData();
                         dateTimes = HikVisionUtils.getInstance().getNetDvrTime().ToString();
                         Log.e("12", "run: " + dateTimes);
+                        if(mReceiveData != null)
                         handlerOrder(mReceiveData[7]);
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -411,8 +414,11 @@ public class SPGProtocol {
     private void handlerOrder(byte order) {
         switch (order) {
             case ORDER_00H:
-                if (proofOrder()) listenerCallBack.receiveSuccess(order);
-                else listenerCallBack.onErrMsg(ERR_ORDER_00H);
+                if (proofOrder()){ listenerCallBack.receiveSuccess(order);
+            }else if(!proofOrder()) { listenerCallBack.onErrMsg(ERR_ORDER_00H);}
+               else  if(mReceiveData != null){
+                setOrder(ORDER_00H);
+                PowerOn();}
                 break;
             case ORDER_01H:
                 //主动发送
@@ -527,6 +533,7 @@ public class SPGProtocol {
                 break;
         }
         mReceiveData=null;
+        mSendData =null;
     }
 
     //计算两个日期时间差
@@ -544,7 +551,7 @@ public class SPGProtocol {
     private Boolean proofOrder() {
         int count = 0;
         for (int i = 0; i < 8; i++) {
-            if (mReceiveData[i] == mSendData[i]) {
+            if (mReceiveData!=null&&mReceiveData[i] == mSendData[i]) {
                 count++;
             }
         }
