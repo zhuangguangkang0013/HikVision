@@ -1,13 +1,8 @@
 package hikvision.zhanyun.com.hikvision;
 
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.SystemClock;
 import android.util.Log;
 
-import com.hikvision.netsdk.NET_DVR_TIME;
-
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -15,6 +10,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.util.Date;
+import java.util.List;
 
 /**
  * Created by ZY004Engineer on 2018/6/12.
@@ -121,6 +117,9 @@ public class SPGProtocol {
     public static final int ERR_ORDER_03H = -3;
     public static final int ERR_ORDER_05H = -5;
 
+    private int packIndex;
+    private final int UPLOAD_IMAGE_PACK_DIVISOR = 256;
+
     public void setOrder(byte order) {
         this.order = order;
         controlChar = new byte[]{order};
@@ -179,14 +178,7 @@ public class SPGProtocol {
                 case ORDER_04H:
                     break;
                 case ORDER_05H:
-                    if (HikVisionUtils.getInstance().getNetDvrTime() != null) {
-                        NET_DVR_TIME netDvrTime = HikVisionUtils.getInstance().getNetDvrTime();
-
-                        signalRecordingTime = new byte[]{(byte) (netDvrTime.dwYear - 2000)
-                                , (byte) netDvrTime.dwMonth, (byte) netDvrTime.dwDay
-                                , (byte) netDvrTime.dwHour, (byte) netDvrTime.dwMinute
-                                , (byte) netDvrTime.dwSecond};
-                    }
+                    signalRecordingTime = HikVisionUtils.getInstance().getNetDvrTimeByte();
                     short signalLength = 8;
                     outputStream.writeShort(signalLength);
                     outputStream.write(signalRecordingTime);
@@ -236,31 +228,40 @@ public class SPGProtocol {
                 case ORDER_83H:
                     break;
                 case ORDER_84H:
+                    if (listenerCallBack != null) {
+                        packIndex = 0;
+                        int packHigh = listenerCallBack.getPackIndex() / UPLOAD_IMAGE_PACK_DIVISOR;
+                        int packLow = listenerCallBack.getPackIndex() % UPLOAD_IMAGE_PACK_DIVISOR;
+                        Log.e("packHigh,packLow", "baleDataChar: " + packHigh + "," + packLow);
+                        short pictureLength = 10;
+                        byte[] pictureTime = HikVisionUtils.getInstance().getNetDvrTimeByte();
+                        byte pictureChannelNum = listenerCallBack.getChannelNum();
+                        byte picturePrepositionNum = listenerCallBack.getPreset();
+                        byte picturePackHigh = (byte) packHigh;
+                        byte picturePackLow = (byte) packLow;
+                        outputStream.writeShort(pictureLength);
+                        outputStream.write(pictureTime);
+                        outputStream.write(pictureChannelNum);
+                        outputStream.write(picturePrepositionNum);
+                        outputStream.write(picturePackHigh);
+                        outputStream.write(picturePackLow);
+                    }
                     break;
                 case ORDER_85H:
-
-                    Bitmap bitmap = BitmapFactory.decodeFile(HikVisionUtils.FILE_PATH);
-
-                    short pictureLength = 18;
-                    outputStream.writeShort(pictureLength);
-                    outputStream.write(new byte[]{1});
-                    outputStream.write(new byte[]{(byte) 255});
-                    outputStream.write(new byte[]{1});
-
-//                    FileReader fr = new FileReader(HikVisionUtils.FILE_PATH);
-
-                    ByteArrayInputStream inputStream = new ByteArrayInputStream(Bitmap2Bytes(bitmap));
-
-//                    while (inputStream.read() != -1) {
-////                        DataOutputStream outputStream1 = new DataOutputStream(byteArrayOutputStream);
-////                        fr.read(outputStream1., 0, Bitmap2Bytes(bitmap).length);
-//                        Log.e("1233", "baleDataChar: " + inputStream.read(Bitmap2Bytes(bitmap), 0, 4000));
-//                    }
-
+                    packIndex++;
+                    uploadPicturePackNum(outputStream, packIndex);
                     break;
                 case ORDER_86H:
+                    Log.e("packIndex", "baleDataChar: 86H ");
+                    if (listenerCallBack != null) {
+                        outputStream.writeShort(2);
+                        outputStream.write(listenerCallBack.getChannelNum());
+                        outputStream.write(listenerCallBack.getPreset());
+                    }
                     break;
                 case ORDER_87H:
+                    Log.e("packIndex", "baleDataChar: 87H ");
+                    uploadPicturePackNum(outputStream, packIndex);
                     break;
                 case ORDER_88H:
                     break;
@@ -280,7 +281,6 @@ public class SPGProtocol {
                     break;
                 case ORDER_97H:
                     break;
-
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -288,17 +288,29 @@ public class SPGProtocol {
     }
 
     /**
-     * Bitmap 转换  byte[]
+     * 上传图片
      *
-     * @param bm 照片
-     * @return 返回照片字节类型
+     * @param outputStream 数据块
+     * @param packIndex    包的页数
      */
-    byte[] Bitmap2Bytes(Bitmap bm) {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        bm.compress(Bitmap.CompressFormat.JPEG, 100, baos);
-        return baos.toByteArray();
+    private void uploadPicturePackNum(DataOutputStream outputStream, int packIndex) {
+        if (listenerCallBack != null && packIndex <= listenerCallBack.getPackIndex()) {
+            Log.e("packIndex", "baleDataChar: " + packIndex);
+            int pack_high = packIndex / UPLOAD_IMAGE_PACK_DIVISOR;
+            int pack_low = packIndex % UPLOAD_IMAGE_PACK_DIVISOR;
+            List<byte[]> fileData = listenerCallBack.getFileData();
+            try {
+                outputStream.writeShort((short) (4 + fileData.get(packIndex - 1).length));
+                outputStream.write(listenerCallBack.getChannelNum());
+                outputStream.write(listenerCallBack.getPreset());
+                outputStream.write(new byte[]{(byte) pack_high});
+                outputStream.write(new byte[]{(byte) pack_low});
+                outputStream.write(fileData.get(packIndex - 1));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
-//    private void
 
     /**
      * 设置回调
@@ -385,7 +397,6 @@ public class SPGProtocol {
                         socket.receive(receivePacket);
                         mReceiveData = receivePacket.getData();
                         dateTimes = HikVisionUtils.getInstance().getNetDvrTime().ToString();
-                        Log.e("12", "run: " + dateTimes);
                         handlerOrder(mReceiveData[7]);
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -492,12 +503,34 @@ public class SPGProtocol {
             case ORDER_83H:
                 break;
             case ORDER_84H:
+                listenerCallBack.receiveSuccess(order);
                 break;
             case ORDER_85H:
                 break;
             case ORDER_86H:
                 break;
             case ORDER_87H:
+                Log.e("mReceiveData[12]", "handlerOrder: " + mReceiveData[12]);
+                int len = 0;
+                int pack_num = -1;
+                if (listenerCallBack != null && mReceiveData[12] != listenerCallBack.getPackIndex()) {
+                    pack_num = mReceiveData[12] + listenerCallBack.getPackIndex();
+                }
+                if (pack_num != -1) {
+                    return;
+                }
+
+                while ((pack_num--) >= 0) {
+                    Log.e("mReceiveData[12]--", "handlerOrder: " + len);
+                    int pack_high = mReceiveData[13 + len];
+                    int pack_low = mReceiveData[14 + len];
+                    packIndex = pack_high * UPLOAD_IMAGE_PACK_DIVISOR + pack_low;
+                    if (packIndex > 0) PowerOn();
+                    len++;
+                }
+                SystemClock.sleep(2000);
+                setOrder(ORDER_86H);
+                PowerOn();
                 break;
             case ORDER_88H:
                 break;
@@ -523,7 +556,7 @@ public class SPGProtocol {
     }
 
     //计算两个日期时间差
-    public static int getTimeDelta(Date date1, Date date2) {
+    private static int getTimeDelta(Date date1, Date date2) {
         long timeDelta = (date1.getTime() - date2.getTime()) / 1000;//单位是秒
         int secondsDelta = timeDelta > 0 ? (int) timeDelta : (int) Math.abs(timeDelta);
         return secondsDelta;

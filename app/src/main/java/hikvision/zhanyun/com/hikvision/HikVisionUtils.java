@@ -122,10 +122,25 @@ public class HikVisionUtils {
      */
     public NET_DVR_TIME getNetDvrTime() {
         if (netDvrTime == null) netDvrTime = new NET_DVR_TIME();
-        if (mLoginId != -1)
+
+        if (mLoginId != -1) {
             HCNetSDK.getInstance()
                     .NET_DVR_GetDVRConfig(mLoginId, HCNetSDK.NET_DVR_GET_TIMECFG, 0, netDvrTime);
+        }
         return netDvrTime;
+    }
+
+    /**
+     * @return 获取规约6个字节的时间
+     */
+    public byte[] getNetDvrTimeByte() {
+        byte[] timeByte = new byte[0];
+        if (getNetDvrTime() != null)
+            timeByte = new byte[]{(byte) (getNetDvrTime().dwYear - 2000)
+                    , (byte) getNetDvrTime().dwMonth, (byte) getNetDvrTime().dwDay
+                    , (byte) getNetDvrTime().dwHour, (byte) getNetDvrTime().dwMinute
+                    , (byte) getNetDvrTime().dwSecond};
+        return timeByte;
     }
 
 
@@ -212,5 +227,4 @@ public class HikVisionUtils {
         FILE_PATH = filePath + "picture.jpg";
         return HCNetSDK.getInstance().NET_DVR_CaptureJPEGPicture(mLoginId, 1, netDvrJpegpara, FILE_PATH);
     }
-
 }

@@ -1,5 +1,7 @@
 package hikvision.zhanyun.com.hikvision;
 
+import java.util.List;
+
 /**
  * Created by ZY004Engineer on 2018/6/12.
  */
@@ -32,7 +34,32 @@ public interface UdpListenerCallBack {
 
     /**
      * 蓄电池电压
+     *
      * @return 蓄电池电压值
      */
     byte getBatterVoltage();
+
+    /**
+     * @return 获取通道号
+     */
+    byte getChannelNum();
+
+    /**
+     * @return 获取预置点
+     */
+    byte getPreset();
+
+    /**
+     * 用于上传照片
+     *
+     * @return 取对应文件数据，以指定的字节放入list数组
+     */
+    List<byte[]> getFileData();
+
+    /**
+     * 用于上传照片
+     *
+     * @return 获取图片一共包数，以4000字节切割的
+     */
+    int getPackIndex();
 }

@@ -5,11 +5,17 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 
 import com.hikvision.netsdk.HCNetSDK;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements UdpListenerCallBack {
     private HikVisionUtils hikVisionUtils;
@@ -20,6 +26,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private static String[] PERMISSIONS_STORAGE = {
             "android.permission.READ_EXTERNAL_STORAGE",
             "android.permission.WRITE_EXTERNAL_STORAGE"};
+    private List<byte[]> fileData;
+    private int packIndex;
+    private int count = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,8 +88,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             spgProtocol.setOrder(SPGProtocol.ORDER_00H);
             spgProtocol.PowerOn();
             spgProtocol.receive();
-
-
         }
     };
 
@@ -100,32 +107,70 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
     @Override
     public void sendSuccess() {
+        if (count == 0) {
+            SystemClock.sleep(2000);
+            Log.e(TAG, "sendSuccess: " + "hi");
+            spgProtocol.setOrder(SPGProtocol.ORDER_86H);
+            spgProtocol.PowerOn();
+            count = -1;
+        }
     }
 
     @Override
     public void receiveSuccess(byte order) {
 
         //成功后停止定时循环发送开机请求
-        if (order == SPGProtocol.ORDER_00H){
+        if (order == SPGProtocol.ORDER_00H) {
             mHanlder.removeCallbacks(boot);
             Log.i(TAG, "服务器返回了信息停止向服务器发送开机请求");
-            mHanlder.postDelayed(WhenTheSchool,1000);
-        }else if (order == SPGProtocol.ORDER_01H){
+            mHanlder.postDelayed(WhenTheSchool, 0);
+        } else if (order == SPGProtocol.ORDER_01H) {
             mHanlder.removeCallbacks(WhenTheSchool);
-            mHanlder.postDelayed(TheHeartbeatPackets,2*60000);
-        }else if(order == SPGProtocol.ORDER_05H){
+            mHanlder.postDelayed(TheHeartbeatPackets, 0);
+        } else if (order == SPGProtocol.ORDER_05H) {
             mHanlder.removeCallbacks(TheHeartbeatPackets);
-            mHanlder.postDelayed(TheHeartbeatPacketss,0);
+//            mHanlder.postDelayed(TheHeartbeatPacketss,0);
             Boolean is = hikVisionUtils.onCaptureJPEGPicture();
             if (!is) {
                 HCNetSDK.getInstance().NET_DVR_GetLastError();
                 Log.e(TAG, "receiveSuccess: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
+                return;
+            }
+            File file = new File(HikVisionUtils.FILE_PATH);
+            if (!file.exists()) {
+                return;
             }
 
-            spgProtocol.setOrder(SPGProtocol.ORDER_85H);
-            spgProtocol.PowerOn();
-        }else if (order == SPGProtocol.ORDER_86H) {
+            try {
+                FileInputStream fis = new FileInputStream(file);
+                int len = 0;
+                packIndex = 0;
+                byte[] buf = new byte[4000];
+                fileData = new ArrayList<>();
+                while ((len = fis.read(buf)) != -1) {
+                    if (len < 4000) {
+                        buf = new byte[len];
+                        fis.read(buf);
+                    }
+                    packIndex++;
+                    fileData.add(buf);
+                    Log.e("packIndex", "baleDataChar: " + packIndex);
+                }
+                Log.e("fileData", "baleDataChar: " + fileData.get(packIndex - 1).length);
+                spgProtocol.setOrder(SPGProtocol.ORDER_84H);
+                spgProtocol.PowerOn();
+                fis.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
+        } else if (order == SPGProtocol.ORDER_84H) {
+            spgProtocol.setOrder(SPGProtocol.ORDER_85H);
+            count = packIndex;
+            while (count-- >= 0) {
+                SystemClock.sleep(10);
+                spgProtocol.PowerOn();
+            }
         }
     }
 
@@ -146,7 +191,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         public void run() {
             spgProtocol.setOrder(SPGProtocol.ORDER_05H);
             spgProtocol.PowerOn();
-            mHanlder.postDelayed(TheHeartbeatPacketss,1000);
+            mHanlder.postDelayed(TheHeartbeatPacketss, 1000);
         }
     };
 
@@ -161,11 +206,11 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
     @Override
     public void onErrMsg(int message) {
-        if(message==SPGProtocol.ERR_ORDER_00H){
+        if (message == SPGProtocol.ERR_ORDER_00H) {
             //若无接收到服务器返回的信息。延迟2分钟,再次执行发送开机请求直到接收到服务器返回值,
             mHanlder.postDelayed((Runnable) this, 1000);
             Log.i(TAG, "服务器没有返回信息");
-        }else if(message==SPGProtocol.ERR_ORDER_01H){
+        } else if (message == SPGProtocol.ERR_ORDER_01H) {
             //若无接受到服务器返回的信息，延迟 分钟，再次执行校时请求直到接收到服务器的返回值
             mHanlder.postDelayed(WhenTheSchool, 1000);
         }
@@ -181,4 +226,23 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         return 0x44;
     }
 
+    @Override
+    public byte getChannelNum() {
+        return 0x03;
+    }
+
+    @Override
+    public byte getPreset() {
+        return 0x02;
+    }
+
+    @Override
+    public List<byte[]> getFileData() {
+        return fileData;
+    }
+
+    @Override
+    public int getPackIndex() {
+        return packIndex;
+    }
 }
