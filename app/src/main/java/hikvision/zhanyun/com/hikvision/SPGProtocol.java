@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.Date;
 
 /**
@@ -67,6 +68,7 @@ public class SPGProtocol {
     private int maxPacketLength = 5000;
     private byte[] version = {0x01, 0x02};
 
+
     //开机联络信息 00H
     private final byte[] START_CHAR = {0x68};
     private final byte[] END_CHAR = {0x16};
@@ -77,6 +79,10 @@ public class SPGProtocol {
 
     //设置终端密码 02H
     private final byte[] TERMINAL_PWD_ORDER = {0x02};
+    private final byte[] TERMINAL_PWD_VERSION = {(byte) 0xFFFF};
+    public String oldPassword;
+    public String newPassword;
+    public boolean judge;
 
     //终端心跳信息 05H
     private byte[] signalRecordingTime = new byte[5];
@@ -109,8 +115,42 @@ public class SPGProtocol {
 
     public byte order;
 
+    //记录发送时间，接收时间
     private String dateTime;
     private String dateTimes;
+
+    //主站下发参数配置
+    public String password;    //密码
+    public int HeartbeatInterval;    //心跳间隔
+    public int SamplingInterval;   //采样间隔
+    public int TheSleepTime;  //休眠时长
+    public int TheOnlineTime; //在线时长时间点
+    public byte[] HardwareResetTime;    //硬件重启
+    public byte[] CipherCertification;    //密文认证
+
+    //更改主站IP
+    public String Http;    //主站IP
+    public String Https; //主站IP
+    public byte[] port; //端口号
+    public byte[] ports;    //端口号
+    public byte[] cardNumber;    //主站卡号
+    public byte[] cardNumbers;    //主站卡号
+    public boolean judges;
+    //返回密码错误
+    private final byte[] Password_Mistake_VERSION = {(byte) 0xFFFF};
+    //返回主站IP端口主站卡号错误
+    private final byte[] HttpOrPortCarNumber = {0x0000};
+    //储存接受数据
+    public byte[] mReceiveDatas;
+
+    //查询主站IP，端口，卡号
+    //主站IP
+    public byte[] ip;
+    //端口号
+    public byte[] queryPort;
+    //主站卡号
+    public byte[] queryCardNumber;
+
 
     //ErrMsg 信息 标识
     public static final int ERR_SEND_UDP = 1;
@@ -165,23 +205,31 @@ public class SPGProtocol {
             switch (order) {
                 case ORDER_00H:
                     //主动开机
-                        outputStream.writeShort(VERSION.length);
-                        outputStream.write(VERSION);
+                    outputStream.writeShort(VERSION.length);
+                    outputStream.write(VERSION);
 
                     break;
                 case ORDER_01H:
                     //主动校时
-                    if(mReceiveData == null){
-                    dateTime = HikVisionUtils.getInstance().getNetDvrTime().ToString();
-                    outputStream.writeShort(WHEN_THE_SCHOOL_VERSION.length);
-                    outputStream.write(WHEN_THE_SCHOOL_VERSION);
-                    }else {//
-                         byte a[] = {mReceiveData[10] ,mReceiveData[11],mReceiveData[12],mReceiveData[13],mReceiveData[14],mReceiveData[15]};
+                    if (mReceiveData == null) {
+                        dateTime = HikVisionUtils.getInstance().getNetDvrTime().ToString();
                         outputStream.writeShort(WHEN_THE_SCHOOL_VERSION.length);
-                        outputStream.write(a);
+                        outputStream.write(WHEN_THE_SCHOOL_VERSION);
+                    } else {//被动校时
+                        byte WHEN_THE_SCHOOL_VERSIONS[] = {mReceiveData[10], mReceiveData[11], mReceiveData[12], mReceiveData[13], mReceiveData[14], mReceiveData[15]};
+                        outputStream.writeShort(WHEN_THE_SCHOOL_VERSION.length);
+                        outputStream.write(WHEN_THE_SCHOOL_VERSIONS);
                     }
                     break;
                 case ORDER_02H:
+                    if (judge) {
+                        byte[] passwordPackage = {mReceiveDatas[10], mReceiveDatas[11], mReceiveDatas[12], mReceiveDatas[13], mReceiveDatas[14], mReceiveDatas[15], mReceiveDatas[16], mReceiveDatas[17]};
+                        outputStream.writeShort(passwordPackage.length);
+                        outputStream.write(passwordPackage);
+                    } else {
+                        outputStream.writeShort(TERMINAL_PWD_VERSION.length);
+                        outputStream.write(TERMINAL_PWD_VERSION);
+                    }
                     break;
                 case ORDER_03H:
                     break;
@@ -207,8 +255,30 @@ public class SPGProtocol {
                     }
                     break;
                 case ORDER_06H:
+                    if (judges) {
+                        if (judge) {
+                            byte[] changeThePackage = {mReceiveDatas[10], mReceiveDatas[11], mReceiveDatas[12], mReceiveDatas[13], mReceiveDatas[14],
+                                    mReceiveDatas[15], mReceiveDatas[16], mReceiveDatas[17], mReceiveDatas[18], mReceiveDatas[19], mReceiveDatas[20], mReceiveDatas[21],
+                                    mReceiveDatas[22], mReceiveDatas[23], mReceiveDatas[24], mReceiveDatas[25], mReceiveDatas[26], mReceiveDatas[27], mReceiveDatas[28], mReceiveDatas[29],
+                                    mReceiveDatas[30], mReceiveDatas[31], mReceiveDatas[32], mReceiveDatas[33], mReceiveDatas[34], mReceiveDatas[35], mReceiveDatas[36], mReceiveDatas[37]};
+                            outputStream.writeShort(changeThePackage.length);
+                            outputStream.write(changeThePackage);
+                        } else {
+                           outputStream.writeShort( HttpOrPortCarNumber .length);
+                            outputStream.write( HttpOrPortCarNumber );
+                        }
+                    } else {
+                        outputStream.writeShort(Password_Mistake_VERSION.length);
+                        outputStream.write(Password_Mistake_VERSION);
+                    }
                     break;
                 case ORDER_07H:
+                    //查询端口
+                    outputStream.writeShort(queryPort.length);
+                    outputStream.write(ip);
+                    outputStream.write(queryPort);
+                    outputStream.write(queryCardNumber);
+
                     break;
                 case ORDER_08H:
                     break;
@@ -261,8 +331,8 @@ public class SPGProtocol {
                     ByteArrayInputStream inputStream = new ByteArrayInputStream(Bitmap2Bytes(bitmap));
 
 //                    while (inputStream.read() != -1) {
-////                        DataOutputStream outputStream1 = new DataOutputStream(byteArrayOutputStream);
-////                        fr.read(outputStream1., 0, Bitmap2Bytes(bitmap).length);
+//                       DataOutputStream outputStream1 = new DataOutputStream(byteArrayOutputStream);
+//                        fr.read(outputStream1., 0, Bitmap2Bytes(bitmap).length);
 //                        Log.e("1233", "baleDataChar: " + inputStream.read(Bitmap2Bytes(bitmap), 0, 4000));
 //                    }
 
@@ -394,8 +464,8 @@ public class SPGProtocol {
                         mReceiveData = receivePacket.getData();
                         dateTimes = HikVisionUtils.getInstance().getNetDvrTime().ToString();
                         Log.e("12", "run: " + dateTimes);
-                        if(mReceiveData != null)
-                        handlerOrder(mReceiveData[7]);
+                        if (mReceiveData != null)
+                            handlerOrder(mReceiveData[7]);
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -414,11 +484,14 @@ public class SPGProtocol {
     private void handlerOrder(byte order) {
         switch (order) {
             case ORDER_00H:
-                if (proofOrder()){ listenerCallBack.receiveSuccess(order);
-            }else if(!proofOrder()) { listenerCallBack.onErrMsg(ERR_ORDER_00H);}
-               else  if(mReceiveData != null){
-                setOrder(ORDER_00H);
-                PowerOn();}
+                if (proofOrder()) {
+                    listenerCallBack.receiveSuccess(order);
+                } else if (!proofOrder()) {
+                    listenerCallBack.onErrMsg(ERR_ORDER_00H);
+                } else if (mReceiveData != null) {
+                    setOrder(ORDER_00H);
+                    PowerOn();
+                }
                 break;
             case ORDER_01H:
                 //主动发送
@@ -439,9 +512,9 @@ public class SPGProtocol {
                     } else {
                         listenerCallBack.onErrMsg(ERR_ORDER_01H);
                     }
-                    dateTime=null;
-                    dateTimes=null;
-                } else if(mReceiveData != null){//被动校时
+                    dateTime = null;
+                    dateTimes = null;
+                } else if (mReceiveData != null) {//被动校时
                     HikVisionUtils.getInstance().setDateTime(mReceiveData[10] + 2000,
                             mReceiveData[11],
                             mReceiveData[12],
@@ -453,13 +526,21 @@ public class SPGProtocol {
                 }
                 break;
             case ORDER_02H:
+                oldPassword = Arrays.toString(new byte[]{mReceiveData[10], mReceiveData[11], mReceiveData[12], mReceiveData[13]});
+                newPassword = Arrays.toString(new byte[]{mReceiveData[14], mReceiveData[15], mReceiveData[16], mReceiveData[17]});
                 listenerCallBack.receiveSuccess(order);
-                String oldPassword = String.valueOf(mReceiveData[10] + mReceiveData[11] + mReceiveData[12] + mReceiveData[13]);
-                if (oldPassword.equals("1234")) {
-                    listenerCallBack.receiveSuccess(order);
-                }
+
                 break;
             case ORDER_03H:
+                mReceiveDatas = mReceiveData;
+                password = Arrays.toString(new byte[]{mReceiveData[10], mReceiveData[11], mReceiveData[12], mReceiveData[13]});//密码
+                HeartbeatInterval = mReceiveData[14];//心跳间隔
+                SamplingInterval = mReceiveData[15] + mReceiveData[16];//采样间隔
+                TheSleepTime = mReceiveData[17] + mReceiveData[18];//休眠间隔
+                TheOnlineTime = mReceiveData[19] + mReceiveData[20];//在线时长
+                HardwareResetTime = new byte[]{mReceiveData[21], mReceiveData[22], mReceiveData[23]};//硬件重启时间点
+                CipherCertification = new byte[]{mReceiveData[24], mReceiveData[25], mReceiveData[26], mReceiveData[27]};//密文认证
+                listenerCallBack.receiveSuccess(order);
                 break;
             case ORDER_04H:
                 break;
@@ -468,8 +549,20 @@ public class SPGProtocol {
                 else listenerCallBack.onErrMsg(ERR_ORDER_05H);
                 break;
             case ORDER_06H:
+                mReceiveDatas = mReceiveData;
+                password = Arrays.toString(new byte[]{mReceiveData[10], mReceiveData[11], mReceiveData[12], mReceiveData[13]});//密码
+                Http = Arrays.toString(new byte[]{mReceiveData[14], mReceiveData[15], mReceiveData[16], mReceiveData[17]});//主站IP
+                port = new byte[]{mReceiveData[18], mReceiveData[19]};//主站端口
+                Https = Arrays.toString(new byte[]{mReceiveData[20], mReceiveData[21], mReceiveData[22], mReceiveData[23],});
+                ports = new byte[]{mReceiveData[24], mReceiveData[25]};
+                cardNumber = new byte[]{mReceiveData[26], mReceiveData[27], mReceiveData[28], mReceiveData[29], mReceiveData[30], mReceiveData[31]};//主站号码
+                cardNumbers = new byte[]{mReceiveData[32], mReceiveData[33], mReceiveData[34], mReceiveData[35], mReceiveData[36], mReceiveData[37]};
+                if (proofOrder()) listenerCallBack.receiveSuccess(order);
+                else listenerCallBack.onErrMsg(ERR_ORDER_05H);
                 break;
             case ORDER_07H:
+                //查询主站IP,端口号，卡号
+                if (proofOrder()) listenerCallBack.receiveSuccess(order);
                 break;
             case ORDER_08H:
                 break;
@@ -532,8 +625,8 @@ public class SPGProtocol {
             case ORDER_97H:
                 break;
         }
-        mReceiveData=null;
-        mSendData =null;
+        mReceiveData = null;
+        mSendData = null;
     }
 
     //计算两个日期时间差
@@ -551,7 +644,7 @@ public class SPGProtocol {
     private Boolean proofOrder() {
         int count = 0;
         for (int i = 0; i < 8; i++) {
-            if (mReceiveData!=null&&mReceiveData[i] == mSendData[i]) {
+            if (mReceiveData != null && mReceiveData[i] == mSendData[i]) {
                 count++;
             }
         }
