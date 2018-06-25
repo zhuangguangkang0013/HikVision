@@ -76,7 +76,7 @@ public class HikVisionUtils {
         // call NET_DVR_Login_v30 to login on, port 8000 as default
         int iLogID = HCNetSDK.getInstance().NET_DVR_Login_V30(address, port,
                 user, password, m_oNetDvrDeviceInfoV30);
-        if (iLogID < 0) {
+            if (iLogID < 0) {
             Log.e(TAG, "NET_DVR_Login is failed!Err:"
                     + HCNetSDK.getInstance().NET_DVR_GetLastError());
             return -1;

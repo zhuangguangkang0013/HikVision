@@ -43,6 +43,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             "android.permission.READ_EXTERNAL_STORAGE",
             "android.permission.WRITE_EXTERNAL_STORAGE"};
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -170,8 +171,10 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             spgProtocol.PowerOn();
 
 
-        } else if (order == SPGProtocol.ORDER_86H) {
 
+        } else if (order==SPGProtocol.ORDER_08H){
+            spgProtocol.PowerOn();
+        } else if (order == SPGProtocol.ORDER_86H) {
 
         } else if (order == SPGProtocol.ORDER_02H) {
             if (spgProtocol.oldPassword.equals(password)) {
@@ -267,9 +270,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             //启动
             spgProtocol.setOrder(SPGProtocol.ORDER_07H);
             spgProtocol.PowerOn();
-
-
         }
+
     }
 
     //定时发送心跳包
@@ -292,6 +294,15 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         }
     };
 
+    //终端休眠通知
+    public Runnable NotificationsDormancy =new Runnable() {
+        @Override
+        public void run() {
+            spgProtocol.setOrder(SPGProtocol.ORDER_0CH);
+            spgProtocol.PowerOn();
+            spgProtocol.receive();
+        }
+    };
     @Override
     public void onErrMsg(int message) {
         if (message == SPGProtocol.ERR_ORDER_00H && spgProtocol.mReceiveData == null) {

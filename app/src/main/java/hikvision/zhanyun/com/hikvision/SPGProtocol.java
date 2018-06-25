@@ -16,6 +16,7 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.logging.FileHandler;
 
 /**
  * Created by ZY004Engineer on 2018/6/12.
@@ -89,6 +90,10 @@ public class SPGProtocol {
     private byte[] signalStrength = new byte[0];
     private byte[] batteryVoltage = new byte[0];
 
+    //终端复位 08H
+    private final byte[] TERMINAL_RESET = {(byte) 0xFFFF};
+    private static boolean RIGHT_OR_NOT;
+
     //上传图像数据 85H
 
 
@@ -99,6 +104,10 @@ public class SPGProtocol {
     public final byte[] IMAGE_CONFIG_DATA_FIELD = new byte[]{};
     private final byte[] IMAGE_CONFIG_CHECK_CODE = new byte[]{};
 
+
+
+    //终端休眠通知 0CH
+    private final byte[] NOTIFICATIONS_DORMANCY = {};
     // ....
 
     private DatagramSocket socket = null;
@@ -281,6 +290,14 @@ public class SPGProtocol {
 
                     break;
                 case ORDER_08H:
+                    if(RIGHT_OR_NOT){
+                        byte[] paw= {mReceiveData[10],mReceiveData[11],mReceiveData[12],mReceiveData[13]};
+                        outputStream.writeShort(paw.length);
+                        outputStream.write(paw);
+                    }
+                    else{
+                    outputStream.writeShort(TERMINAL_RESET.length);
+                    outputStream.write(TERMINAL_RESET);}
                     break;
                 case ORDER_09H:
                     break;
@@ -289,6 +306,8 @@ public class SPGProtocol {
                 case ORDER_0BH:
                     break;
                 case ORDER_0CH:
+                    outputStream.writeShort(NOTIFICATIONS_DORMANCY.length);
+                    outputStream.write(NOTIFICATIONS_DORMANCY);
                     break;
                 case ORDER_0DH:
                     break;
@@ -565,6 +584,13 @@ public class SPGProtocol {
                 if (proofOrder()) listenerCallBack.receiveSuccess(order);
                 break;
             case ORDER_08H:
+                String NowPassword = String.valueOf(mReceiveData[10] + mReceiveData[11] + mReceiveData[12] + mReceiveData[13]);
+                if(NowPassword.equals("1234")) {
+                    RIGHT_OR_NOT = true;
+                }else {
+                    RIGHT_OR_NOT=false;
+                }
+                listenerCallBack.receiveSuccess(order);
                 break;
             case ORDER_09H:
                 break;
