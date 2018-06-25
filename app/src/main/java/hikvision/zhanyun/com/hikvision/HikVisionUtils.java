@@ -131,6 +131,8 @@ public class HikVisionUtils {
     }
 
     /**
+     * <<<<<<< HEAD
+     *
      * @return 获取规约6个字节的时间
      */
     public byte[] getNetDvrTimeByte() {
@@ -143,6 +145,31 @@ public class HikVisionUtils {
         return timeByte;
     }
 
+    /**
+     * 终端复位
+     *
+     * @param iReturn NET_DVR_Login_V40等登录接口的返回值
+     *                i1 通道号
+     *                i2 操作云台预置点命令  8--设置预置点  9--清除预置点   39--转到预置点
+     *                i3 预置点的序号
+     */
+    public boolean TerminalReduction(int iReturn) {
+        HCNetSDK.getInstance()
+                .NET_DVR_PTZPreset_Other(iReturn, 1, 39, 1);
+        boolean trReturn = false;
+        return trReturn;
+    }
+
+    /**
+     * 返回最后操作的错误码。
+     *
+     * @return 返回值为错误码 具体请看SDK——NET_DVR_GetLastError
+     */
+    public int GetLastError() {
+        int LastError = HCNetSDK.getInstance()
+                .NET_DVR_GetLastError();
+        return LastError;
+    }
 
     /**
      * @return exception instance

@@ -11,7 +11,7 @@ public interface UdpListenerCallBack {
     /**
      * 发送udp成功
      */
-    void sendSuccess();
+    void sendSuccess(byte order);
 
     /**
      * 接受udp成功
