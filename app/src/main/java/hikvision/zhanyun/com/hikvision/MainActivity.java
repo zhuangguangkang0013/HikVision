@@ -130,7 +130,15 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
 
     @Override
-    public void sendSuccess() {
+    public void sendSuccess(byte order) {
+        if (order==SPGProtocol.ORDER_08H){
+            boolean trReturn;
+            trReturn=hikVisionUtils.TerminalReduction(m_iLogId);
+            if(!trReturn){
+                int LastError=hikVisionUtils.GetLastError();
+                Log.d("LastError:", String.valueOf(LastError));
+            }
+        }
     }
 
     @Override
@@ -317,6 +325,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             mHanlder.postDelayed(TheHeartbeatPackets, 1000);
         }
     }
+
+
 
     @Override
     public byte getSignalStrength() {

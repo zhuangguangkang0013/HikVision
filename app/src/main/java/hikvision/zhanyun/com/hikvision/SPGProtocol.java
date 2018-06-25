@@ -91,7 +91,7 @@ public class SPGProtocol {
     private byte[] batteryVoltage = new byte[0];
 
     //终端复位 08H
-    private final byte[] TERMINAL_RESET = {(byte) 0xFFFF};
+    private final byte[] TERMINAL_RESET = {(byte) 0xFFF};
     private static boolean RIGHT_OR_NOT;
 
     //上传图像数据 85H
@@ -439,7 +439,7 @@ public class SPGProtocol {
                     socket.send(outPacket);
 
                     SystemClock.sleep(10);
-                    listenerCallBack.sendSuccess();
+                    listenerCallBack.sendSuccess(order);
                     mSendData = buf;
                 } catch (IOException e) {
                     e.printStackTrace();
