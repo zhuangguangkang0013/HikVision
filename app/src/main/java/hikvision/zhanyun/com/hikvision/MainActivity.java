@@ -4,19 +4,20 @@ import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
-import android.os.SystemClock;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 
 import com.hikvision.netsdk.HCNetSDK;
+import com.hikvision.netsdk.PTZCommand;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 
 public class MainActivity extends AppCompatActivity implements UdpListenerCallBack {
@@ -28,7 +29,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private String password = "admin12345";
     private String http = "171.221.207.59";
     private int httpPort = 17116;
-    private String cardNumber = "123456";
+    //    private String http = "10.18.67.225";
+//    private int httpPort = 8989;
+    private String cardNumber = "ZJ0001";
     public Handler mHanlder = new Handler();
     //心跳包间隔
     private int TheHeartbeatPacketsTime = 60;//秒钟
@@ -51,6 +54,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private List<byte[]> fileData;
     private int packIndex;
     private int count = -1;
+    private Timer timer;
 
 
     @Override
@@ -79,7 +83,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         spgProtocol = new SPGProtocol(this);
         spgProtocol.InitUdp(http, httpPort, cardNumber);
 
-
         int a;
         int b;
         int c;
@@ -98,11 +101,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         Log.i(TAG, "onCreate: " + b);
         Log.i(TAG, "onCreate: " + c);
         Log.i(TAG, "onCreate: " + d);
-
         mHanlder.postDelayed(boot, 0);
-
-
     }
+
 
 
     public static void verifyStoragePermissions(Activity activity) {
@@ -128,9 +129,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private Runnable boot = new Runnable() {
         @Override
         public void run() {
-            spgProtocol.setOrder(SPGProtocol.ORDER_00H);
-            spgProtocol.PowerOn();
-            spgProtocol.receive();
+            spgProtocol.bootContactInfo();
+//            String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/picture.jpg";
+//            spgProtocol.uploadPicture(filePath);
         }
     };
 
@@ -156,7 +157,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 break;
             case SPGProtocol.ORDER_08H:
                 boolean trReturn;
-                trReturn = hikVisionUtils.TerminalReduction(m_iLogId);
+                trReturn = hikVisionUtils.terminalReduction(3, PTZCommand.GOTO_PRESET, 1);
                 if (!trReturn) {
                     int LastError = hikVisionUtils.GetLastError();
                     Log.d("LastError:", String.valueOf(LastError));
@@ -197,13 +198,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_84H:
                 break;
             case SPGProtocol.ORDER_85H:
-                if (count == 0) {
-                    SystemClock.sleep(2000);
-                    Log.e(TAG, "sendSuccess: " + "hi");
-                    spgProtocol.setOrder(SPGProtocol.ORDER_86H);
-                    spgProtocol.PowerOn();
-                    count = -1;
-                }
                 break;
             case SPGProtocol.ORDER_86H:
                 break;
@@ -231,6 +225,18 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
     }
 
+    private int len = 0;
+    private TimerTask timerTask = new TimerTask() {
+        @Override
+        public void run() {
+            spgProtocol.schoolTime();
+            len++;
+            if (len == 3) {
+                timer.cancel();
+            }
+        }
+    };
+
     @Override
     public void receiveSuccess(byte order) {
         switch (order) {
@@ -239,7 +245,10 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 mHanlder.removeCallbacks(boot);
                 Log.i(TAG, "服务器返回了信息停止向服务器发送开机请求");
                 //开启校时功能
-                mHanlder.postDelayed(WhenTheSchool, 1000);
+//                mHanlder.postDelayed(WhenTheSchool, 5000);
+//                timer = new Timer();
+//                timer.schedule(timerTask, 1000, 10000);
+
                 break;
             case SPGProtocol.ORDER_01H:
                 //校时成功后停止校时功能
@@ -250,13 +259,12 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_02H:
                 if (spgProtocol.oldPassword.equals(password)) {
                     password = spgProtocol.newPassword;
-                    spgProtocol.setOrder(SPGProtocol.ORDER_02H);
-                    spgProtocol.PowerOn();
                     spgProtocol.judge = true;
+                    spgProtocol.setTerminalPassword(true);
+
                 } else {
-                    spgProtocol.setOrder(SPGProtocol.ORDER_02H);
-                    spgProtocol.PowerOn();
                     spgProtocol.judge = false;
+                    spgProtocol.setTerminalPassword(false);
                 }
                 break;
             case SPGProtocol.ORDER_03H:
@@ -268,7 +276,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                     HardwareResetTime = spgProtocol.HardwareResetTime;//硬件重启时间点   //重启功能未实现
                     CipherCertification = spgProtocol.CipherCertification;//密文认证
                     //TODO 处理休眠
-
                 }
                 break;
             case SPGProtocol.ORDER_04H:
@@ -282,8 +289,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                     //否则关闭心跳包,两分钟后再重新开启定时心跳线程
                     mHanlder.removeCallbacks(TheHeartbeatPackets);
                     //执行指令
-                    spgProtocol.setOrder(spgProtocol.mReceiveData[7]);
-                    spgProtocol.PowerOn();
+                    byte[] time = HikVisionUtils.getInstance().getNetDvrTimeByte();
+                    spgProtocol.terminalHeartBeatInfo(time, (byte) 0x64, (byte) 0x44);
                     mHanlder.postDelayed(TheHeartbeatPackets, TheHeartbeatPacketsTimes);
                 }
                 break;
@@ -291,8 +298,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 if (password.equals(spgProtocol.password)) {
                     spgProtocol.judges = true;
                     if (password.equals(spgProtocol.password) && spgProtocol.Http.equals(spgProtocol.Https) && Arrays.equals(spgProtocol.port, spgProtocol.ports) && Arrays.equals(spgProtocol.cardNumber, spgProtocol.cardNumbers)) {
-                        spgProtocol.setOrder(SPGProtocol.ORDER_06H);
-                        spgProtocol.PowerOn();
+//                        spgProtocol.setOrder(SPGProtocol.ORDER_06H);
+//                        spgProtocol.PowerOn();
                         spgProtocol.judge = true;
                         //TODO 更改端口IP
                         //更改IP
@@ -327,7 +334,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 int mainVersion = (httpPort & 0xFF00) >> 8;
                 int minorVersion = httpPort & 0xFF;
                 byte[] portNumber = {(byte) (mainVersion * 256 + minorVersion)};
-                spgProtocol.queryPort = portNumber;
                 //IP
                 int a, b, c, d;
                 //先找到IP地址字符串中.的位置
@@ -339,15 +345,13 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 b = Integer.parseInt(http.substring(position1 + 1, position2));
                 c = Integer.parseInt(http.substring(position2 + 1, position3));
                 d = Integer.parseInt(http.substring(position3 + 1));
-                spgProtocol.ip = new byte[]{(byte) a, (byte) b, (byte) c, (byte) d};
-                //卡号
-                spgProtocol.cardNumber = new byte[]{Byte.parseByte(cardNumber)};
+
                 //启动
-                spgProtocol.setOrder(SPGProtocol.ORDER_07H);
-                spgProtocol.PowerOn();
+                spgProtocol.queryMasterStation(new byte[]{(byte) a, (byte) b, (byte) c, (byte) d}
+                        , portNumber, new byte[]{Byte.parseByte(cardNumber)});
                 break;
             case SPGProtocol.ORDER_08H:
-                spgProtocol.PowerOn();
+//                spgProtocol.PowerOn();
                 break;
             case SPGProtocol.ORDER_09H:
                 break;
@@ -380,50 +384,19 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_82H:
                 break;
             case SPGProtocol.ORDER_83H:
+                hikVisionUtils.terminalReduction(spgProtocol.getChannelNum(), PTZCommand.GOTO_PRESET, spgProtocol.getPreset());
+                String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/";
                 //上传图片
-                Boolean is = hikVisionUtils.onCaptureJPEGPicture();
-                if (!is) {
+                Boolean isSuccess = hikVisionUtils.onCaptureJPEGPicture(filePath, spgProtocol.getImageSizeOne());
+                if (!isSuccess) {
                     HCNetSDK.getInstance().NET_DVR_GetLastError();
                     Log.e(TAG, "receiveSuccess: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
                     return;
                 }
-                File file = new File(HikVisionUtils.FILE_PATH);
-                if (!file.exists()) {
-                    return;
-                }
+                spgProtocol.uploadPicture(HikVisionUtils.FILE_PATH);
 
-                try {
-                    FileInputStream fis = new FileInputStream(file);
-                    int len = 0;
-                    packIndex = 0;
-                    byte[] buf = new byte[4000];
-                    fileData = new ArrayList<>();
-                    while ((len = fis.read(buf)) != -1) {
-                        if (len < 4000) {
-                            buf = new byte[len];
-                            fis.read(buf);
-                        }
-                        packIndex++;
-                        fileData.add(buf);
-                        Log.e("packIndex", "baleDataChar: " + packIndex);
-                    }
-                    Log.e("fileData", "baleDataChar: " + fileData.get(packIndex - 1).length);
-                    spgProtocol.setOrder(SPGProtocol.ORDER_84H);
-                    spgProtocol.PowerOn();
-                    fis.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
                 break;
             case SPGProtocol.ORDER_84H:
-                spgProtocol.setOrder(SPGProtocol.ORDER_85H);
-                count = packIndex;
-                while (count-- >= 0) {
-                    SystemClock.sleep(10);
-                    spgProtocol.PowerOn();
-                }
-                spgProtocol.setOrder(SPGProtocol.ORDER_85H);
-                spgProtocol.PowerOn();
                 break;
             case SPGProtocol.ORDER_85H:
                 break;
@@ -457,9 +430,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     public Runnable TheHeartbeatPackets = new Runnable() {
         @Override
         public void run() {
-            spgProtocol.setOrder(SPGProtocol.ORDER_05H);
-            spgProtocol.PowerOn();
-            spgProtocol.receive();
+            byte[] time = HikVisionUtils.getInstance().getNetDvrTimeByte();
+            spgProtocol.terminalHeartBeatInfo(time, (byte) 0x64, (byte) 0x44);
         }
     };
 
@@ -467,8 +439,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     public Runnable TheHeartbeatPacketss = new Runnable() {
         @Override
         public void run() {
-            spgProtocol.setOrder(SPGProtocol.ORDER_05H);
-            spgProtocol.PowerOn();
+            byte[] time = HikVisionUtils.getInstance().getNetDvrTimeByte();
+            spgProtocol.terminalHeartBeatInfo(time, (byte) 0x64, (byte) 0x44);
             mHanlder.postDelayed(TheHeartbeatPacketss, 1000);
         }
     };
@@ -477,9 +449,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     //主动校时线程
     public Runnable WhenTheSchool = new Runnable() {
         public void run() {
-            spgProtocol.setOrder(SPGProtocol.ORDER_01H);
-            spgProtocol.PowerOn();
-            spgProtocol.receive();
+            spgProtocol.schoolTime();
+
         }
     };
 
@@ -487,9 +458,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     public Runnable NotificationsDormancy = new Runnable() {
         @Override
         public void run() {
-            spgProtocol.setOrder(SPGProtocol.ORDER_0CH);
-            spgProtocol.PowerOn();
-            spgProtocol.receive();
+            spgProtocol.terminalSleepNotification();
         }
     };
 
@@ -525,7 +494,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 break;
             case SPGProtocol.ERR_ORDER_08H:
                 boolean trReturn;
-                trReturn = hikVisionUtils.TerminalReduction(m_iLogId);
+                trReturn = hikVisionUtils.terminalReduction(3, PTZCommand.GOTO_PRESET, 1);
                 if (!trReturn) {
                     int LastError = hikVisionUtils.GetLastError();
                     Log.d("LastError:", String.valueOf(LastError));
@@ -592,26 +561,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         }
     }
 
-
-    @Override
-    public byte getSignalStrength() {
-        return 0x64;
-    }
-
-    @Override
-    public byte getBatterVoltage() {
-        return 0x44;
-    }
-
-    @Override
-    public byte getChannelNum() {
-        return 0x03;
-    }
-
-    @Override
-    public byte getPreset() {
-        return 0x02;
-    }
 
     @Override
     public List<byte[]> getFileData() {

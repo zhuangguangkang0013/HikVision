@@ -146,18 +146,24 @@ public class HikVisionUtils {
     }
 
     /**
+     *
+     *
+     * @param   NET_DVR_Login_V40等登录接口的返回值
+     *                i1
+     *                i2
+     *                i3
+     */
+    /**
      * 终端复位
      *
-     * @param iReturn NET_DVR_Login_V40等登录接口的返回值
-     *                i1 通道号
-     *                i2 操作云台预置点命令  8--设置预置点  9--清除预置点   39--转到预置点
-     *                i3 预置点的序号
+     * @param i1 通道号
+     * @param i2 操作云台预置点命令  SET_PRESET--设置预置点  CLE_PRESET--清除预置点   GOTO_PRESET--转到预置点
+     * @param i3 预置点的序号
+     * @return
      */
-    public boolean TerminalReduction(int iReturn) {
-        HCNetSDK.getInstance()
-                .NET_DVR_PTZPreset_Other(iReturn, 1, 39, 1);
-        boolean trReturn = false;
-        return trReturn;
+    public boolean terminalReduction(int i1, int i2, int i3) {
+        return HCNetSDK.getInstance()
+                .NET_DVR_PTZPreset_Other(mLoginId, i1, i2, i3);
     }
 
     /**
@@ -243,10 +249,56 @@ public class HikVisionUtils {
      *
      * @return true成功，则失败
      */
-    public boolean onCaptureJPEGPicture() {
+    public boolean onCaptureJPEGPicture(String filePath, int imageSize) {
         NET_DVR_JPEGPARA netDvrJpegpara = new NET_DVR_JPEGPARA();
+        switch (imageSize) {
+            case 1://320 X 240
+                netDvrJpegpara.wPicSize = 23;
+                break;
+            case 2://640 X 480
+                netDvrJpegpara.wPicSize = 6;
+                break;
+            case 3://704 X 576
+                netDvrJpegpara.wPicSize = 2;
+                break;
+            case 4://800 X 600
+                netDvrJpegpara.wPicSize = 4;
+                break;
+            case 5://1024 X 768
+                netDvrJpegpara.wPicSize = 25;
+                break;
+            case 6://1280 X 1024
+                netDvrJpegpara.wPicSize = 17;
+                break;
+            case 7://1280 X 720
+                netDvrJpegpara.wPicSize = 5;
+                break;
+            case 8://1920 X 1080
+                netDvrJpegpara.wPicSize = 9;
+                break;
+            case 9://2048 X 1536
+                break;
+            case 10://2560 X 1440
+                break;
+            case 11://2560 X 1920
+                break;
+            case 12://2592 X 1944
+                break;
+            case 13://3200 X 2400
+                break;
+            case 14://3264 X 2448
+                break;
+            case 15://3840 X 2160
+                break;
+            case 16://4160 X 2340
+                break;
+            case 17://4000 X 3000
+                break;
+            case 18://4608 X 3456
+                break;
+        }
+        netDvrJpegpara.wPicQuality = 2;
 
-        String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/";
         File file = new File(filePath);
         if (!file.exists()) {
             file.mkdirs();
@@ -254,4 +306,5 @@ public class HikVisionUtils {
         FILE_PATH = filePath + "picture.jpg";
         return HCNetSDK.getInstance().NET_DVR_CaptureJPEGPicture(mLoginId, 1, netDvrJpegpara, FILE_PATH);
     }
+
 }

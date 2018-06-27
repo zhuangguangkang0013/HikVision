@@ -25,29 +25,6 @@ public interface UdpListenerCallBack {
      */
     void onErrMsg(int message);
 
-    /**
-     * 信号强度
-     *
-     * @return 信号强度值
-     */
-    byte getSignalStrength();
-
-    /**
-     * 蓄电池电压
-     *
-     * @return 蓄电池电压值
-     */
-    byte getBatterVoltage();
-
-    /**
-     * @return 获取通道号
-     */
-    byte getChannelNum();
-
-    /**
-     * @return 获取预置点
-     */
-    byte getPreset();
 
     /**
      * 用于上传照片
@@ -62,4 +39,5 @@ public interface UdpListenerCallBack {
      * @return 获取图片一共包数，以4000字节切割的
      */
     int getPackIndex();
+
 }
