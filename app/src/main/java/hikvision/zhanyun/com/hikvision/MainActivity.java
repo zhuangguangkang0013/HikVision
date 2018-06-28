@@ -55,8 +55,10 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private int packIndex;
     private int count = -1;
     private Timer timer;
-
-
+    //文件路径
+    private String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/";
+    //视频文件名字
+    private String fileName = "test.mp4";
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -385,7 +387,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 break;
             case SPGProtocol.ORDER_83H:
                 hikVisionUtils.terminalReduction(spgProtocol.getChannelNum(), PTZCommand.GOTO_PRESET, spgProtocol.getPreset());
-                String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/";
                 //上传图片
                 Boolean isSuccess = hikVisionUtils.onCaptureJPEGPicture(filePath, spgProtocol.getImageSizeOne());
                 if (!isSuccess) {
@@ -403,7 +404,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_86H:
                 break;
             case SPGProtocol.ORDER_87H:
-
                 break;
             case SPGProtocol.ORDER_88H:
                 break;
@@ -414,6 +414,12 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_8BH:
                 break;
             case SPGProtocol.ORDER_93H:
+                if(spgProtocol.mReceiveDatas[11] == 0){
+                hikVisionUtils.onCaptureVideo(4,1,0,0,0,1,0,filePath,fileName,10000);
+                spgProtocol.uploadPicture(filePath+fileName);}
+                else
+                    //TODO 调整相机预置位置后再开启拍摄
+
                 break;
             case SPGProtocol.ORDER_94H:
                 break;

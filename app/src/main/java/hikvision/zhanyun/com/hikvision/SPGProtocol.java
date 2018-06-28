@@ -677,7 +677,7 @@ public class SPGProtocol {
                 handlerQuestTakingPictures(mReceiveData);
                 break;
             case ORDER_84H:
-                handlerUploadPicture();
+                handlerUploadPicture(ORDER_85H);
                 break;
             case ORDER_85H:
                 break;
@@ -695,6 +695,7 @@ public class SPGProtocol {
             case ORDER_8BH:
                 break;
             case ORDER_93H:
+                theMainRequestFilmingShortVideo(mReceiveData);
                 break;
             case ORDER_94H:
                 break;
@@ -802,7 +803,6 @@ public class SPGProtocol {
         originalCommandData = mReceiveData;
         setOrder(ORDER_06H);
         PowerOn();
-
         if (judges) {
             if (judge) {
                 dataDomain = new byte[]{mReceiveData[10], mReceiveData[11],
@@ -885,9 +885,23 @@ public class SPGProtocol {
     }
 
     /**
+     * 主站请求拍摄短视频
+     *
+     *@param mReceiveData
+     */
+    protected  void theMainRequestFilmingShortVideo(byte[] mReceiveData){
+        originalCommandData=mReceiveData;
+        setOrder(ORDER_93H);
+        PowerOn();
+        if (listenerCallBack != null) listenerCallBack.receiveSuccess(order);
+    }
+
+
+
+    /**
      * 上传图片数据,上传完后,2秒后发送上传结束标记
      */
-    protected void handlerUploadPicture() {
+    protected void handlerUploadPicture(byte order) {
         try {
             int len = 0;
             int packIndex = 0;
@@ -909,7 +923,7 @@ public class SPGProtocol {
                 baos.write((byte) pack_low);
                 baos.write(buf);
                 dataDomain = baos.toByteArray();
-                setOrder(ORDER_85H);
+                setOrder(order);
                 PowerOn();
                 baos.close();
                 Log.e("上传图片packIndex", "baleDataChar: " + packIndex);

@@ -1,10 +1,12 @@
 package hikvision.zhanyun.com.hikvision;
 
 import android.os.Environment;
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.hikvision.netsdk.ExceptionCallBack;
 import com.hikvision.netsdk.HCNetSDK;
+import com.hikvision.netsdk.INTER_PREVIEWINFO;
 import com.hikvision.netsdk.NET_DVR_DEVICEINFO_V30;
 import com.hikvision.netsdk.NET_DVR_JPEGPARA;
 import com.hikvision.netsdk.NET_DVR_TIME;
@@ -307,4 +309,38 @@ public class HikVisionUtils {
         return HCNetSDK.getInstance().NET_DVR_CaptureJPEGPicture(mLoginId, 1, netDvrJpegpara, FILE_PATH);
     }
 
+    /**
+     * 开始录像并保存文件
+     *
+     * @param dwLinkMode      0- TCP方式，1- UDP方式，2- 多播方式，3- RTP方式，4-RTP/RTSP，5-RSTP/HTTP
+     * @param lChannel        预览通道号
+     * @param dwStreamType    0-主码流，1-子码流，2-码流3，3-码流4，以此类推
+     * @param bPassBackRecord 是否启用录像回传：0-不启用录像回传，1-启用录像回传。ANR断网补录功能，客户端和设备之间网络异常恢复之后自动将前端数据同步过来，需要设备支持。
+     * @param byPreviewMode   延迟预览模式：0- 正常预览，1- 延迟预览
+     * @param byProtoType     应用层取流协议：0- 私有协议，1- RTSP协议。主子码流支持的取流协议通过登录返回结构参数NET_DVR_DEVICEINFO_V30的byMainProto、bySubProto值得知。设备同时支持私协议和RTSP协议时，该参数才有效，默认使用私有协议，可选RTSP协议。
+     * @param bBlocked        0- 非阻塞取流，1- 阻塞取流
+     * @param filePath        储存文件路径
+     * @param fileName        文件名字
+     * @param shootingTime    拍摄时长
+     * @return
+     */
+    public void onCaptureVideo(int dwLinkMode, int lChannel,
+                               int dwStreamType, int bPassBackRecord,
+                               int byPreviewMode, int byProtoType,
+                               int bBlocked, String filePath, String fileName,
+                               int shootingTime) {
+        INTER_PREVIEWINFO previewinfo = new INTER_PREVIEWINFO();
+        previewinfo.dwLinkMode = dwLinkMode;
+        previewinfo.lChannel = lChannel;
+        previewinfo.dwStreamType = dwStreamType;
+        previewinfo.bPassbackRecord = bPassBackRecord;
+        previewinfo.byPreviewMode = (byte) byPreviewMode;
+        previewinfo.byProtoType = (byte) byProtoType;
+        previewinfo.bBlocked = bBlocked;
+        int acb = HCNetSDK.getInstance().NET_DVR_RealPlay_V40(mLoginId, previewinfo, null, null);
+        HCNetSDK.getInstance().NET_DVR_SaveRealData(acb, filePath + fileName);
+        SystemClock.sleep(shootingTime);
+        HCNetSDK.getInstance().NET_DVR_StopSaveRealData(acb);
+        HCNetSDK.getInstance().NET_DVR_StopRealPlay(acb);
+    }
 }
