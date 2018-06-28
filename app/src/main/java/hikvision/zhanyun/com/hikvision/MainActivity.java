@@ -17,7 +17,6 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Timer;
-import java.util.TimerTask;
 
 
 public class MainActivity extends AppCompatActivity implements UdpListenerCallBack {
@@ -55,6 +54,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private int packIndex;
     private int count = -1;
     private Timer timer;
+    private String filePath = Environment.getExternalStorageDirectory()
+            .getAbsolutePath() + File.separator + "HikVisionPicture/";
+
 
 
     @Override
@@ -102,6 +104,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         Log.i(TAG, "onCreate: " + c);
         Log.i(TAG, "onCreate: " + d);
         mHanlder.postDelayed(boot, 0);
+//        spgProtocol.uploadFile(filePath+"picture.jpg");
     }
 
 
@@ -131,7 +134,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         public void run() {
             spgProtocol.bootContactInfo();
 //            String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/picture.jpg";
-//            spgProtocol.uploadPicture(filePath);
+//            spgProtocol.uploadFile(filePath);
         }
     };
 
@@ -225,36 +228,22 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
     }
 
-    private int len = 0;
-    private TimerTask timerTask = new TimerTask() {
-        @Override
-        public void run() {
-            spgProtocol.schoolTime();
-            len++;
-            if (len == 3) {
-                timer.cancel();
-            }
-        }
-    };
-
     @Override
     public void receiveSuccess(byte order) {
         switch (order) {
             case SPGProtocol.ORDER_00H:
                 //成功后停止定时循环发送开机请求
-                mHanlder.removeCallbacks(boot);
-                Log.i(TAG, "服务器返回了信息停止向服务器发送开机请求");
-                //开启校时功能
+//                mHanlder.removeCallbacks(boot);
+//                Log.i(TAG, "服务器返回了信息停止向服务器发送开机请求");
+//                //开启校时功能
 //                mHanlder.postDelayed(WhenTheSchool, 5000);
-//                timer = new Timer();
-//                timer.schedule(timerTask, 1000, 10000);
-
+                spgProtocol.schoolTime();
                 break;
             case SPGProtocol.ORDER_01H:
-                //校时成功后停止校时功能
-                mHanlder.removeCallbacks(WhenTheSchool);
-                //开启心跳包
-                mHanlder.postDelayed(TheHeartbeatPackets, 1000);
+//                //校时成功后停止校时功能
+//                mHanlder.removeCallbacks(WhenTheSchool);
+//                //开启心跳包
+//                mHanlder.postDelayed(TheHeartbeatPackets, 1000);
                 break;
             case SPGProtocol.ORDER_02H:
                 if (spgProtocol.oldPassword.equals(password)) {
@@ -385,7 +374,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 break;
             case SPGProtocol.ORDER_83H:
                 hikVisionUtils.terminalReduction(spgProtocol.getChannelNum(), PTZCommand.GOTO_PRESET, spgProtocol.getPreset());
-                String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/";
+
                 //上传图片
                 Boolean isSuccess = hikVisionUtils.onCaptureJPEGPicture(filePath, spgProtocol.getImageSizeOne());
                 if (!isSuccess) {
@@ -393,7 +382,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                     Log.e(TAG, "receiveSuccess: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
                     return;
                 }
-                spgProtocol.uploadPicture(HikVisionUtils.FILE_PATH);
+
 
                 break;
             case SPGProtocol.ORDER_84H:
@@ -449,8 +438,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     //主动校时线程
     public Runnable WhenTheSchool = new Runnable() {
         public void run() {
-            spgProtocol.schoolTime();
 
+            mHanlder.postDelayed(this, 5000);
         }
     };
 

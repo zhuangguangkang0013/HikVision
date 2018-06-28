@@ -229,7 +229,7 @@ public class SPGProtocol {
     private File pictureFile;
     private Timer timer;
     private final static long ONE_MINUTE = 60 * 1000;
-    private final static long TWO_MINUTE = 2 * 60 * 1000;
+    private final static long TWO_MINUTE = 2 * 1000;
 
     public void setOrder(byte order) {
         this.order = order;
@@ -353,7 +353,7 @@ public class SPGProtocol {
     private TimerTask mTimerTask = new TimerTask() {
         @Override
         public void run() {
-            PowerOn();
+
         }
     };
 
@@ -362,10 +362,16 @@ public class SPGProtocol {
      *
      * @param isOpen 是否启动
      */
-    private void setTimer(Boolean isOpen) {
+    private void setTimer(Boolean isOpen, long time) {
         if (isOpen) {
             timer = new Timer();
-            timer.schedule(mTimerTask, ONE_MINUTE, ONE_MINUTE);
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    PowerOn();
+                    Log.e("mTimerTask", "run: " + order);
+                }
+            }, time, time);
         } else {
             timer.cancel();
             timer = null;
@@ -381,7 +387,7 @@ public class SPGProtocol {
         dataDomain = VERSION;
         setOrder(ORDER_00H);
         PowerOn();
-        setTimer(true);
+        setTimer(true, ONE_MINUTE);
     }
 
     /**
@@ -393,6 +399,7 @@ public class SPGProtocol {
         dataDomain = new byte[]{};
         setOrder(ORDER_01H);
         PowerOn();
+        setTimer(true, TWO_MINUTE);
     }
 
     /**
@@ -477,10 +484,16 @@ public class SPGProtocol {
      *
      * @param filePath 路径
      */
-    public void uploadPicture(String filePath) {
+    public void uploadFile(String filePath) {
         originalCommandData = null;
         if (isUpLocal) return;
         isUpLocal = true;
+        byte order = -1;
+        if (filePath.endsWith(".jpg")) {
+            order = ORDER_84H;
+        } else if (filePath.endsWith(".mp4")) {
+            order = ORDER_94H;
+        }
         pictureFile = new File(filePath);
         if (!pictureFile.exists()) {
             //TODO 错误处理--find not  file
@@ -509,7 +522,7 @@ public class SPGProtocol {
             baos.write((byte) pack_low);
             dataDomain = baos.toByteArray();
             baos.close();
-            setOrder(ORDER_84H);
+            setOrder(order);
             PowerOn();
             fis.close();
         } catch (Exception e) {
@@ -677,14 +690,14 @@ public class SPGProtocol {
                 handlerQuestTakingPictures(mReceiveData);
                 break;
             case ORDER_84H:
-                handlerUploadPicture();
+                handlerUploadPicture(ORDER_85H, ORDER_86H);
                 break;
             case ORDER_85H:
                 break;
             case ORDER_86H:
                 break;
             case ORDER_87H:
-                handlerTonicPack(mReceiveData);
+                handlerTonicPack(mReceiveData, ORDER_85H, ORDER_86H);
                 break;
             case ORDER_88H:
                 break;
@@ -715,7 +728,7 @@ public class SPGProtocol {
     protected void handlerBootContactInfo(byte[] mReceiveData) {
         if (proofOrder()) {
             listenerCallBack.receiveSuccess(order);
-            setTimer(false);
+            setTimer(false, 0);
         } else if (!proofOrder()) {
             listenerCallBack.onErrMsg(ERR_ORDER_00H);
         } else if (mReceiveData != null) {
@@ -873,7 +886,7 @@ public class SPGProtocol {
     /**
      * 主站请求拍摄照片
      *
-     * @param mReceiveData
+     * @param mReceiveData 主站下发的数据
      */
     protected void handlerQuestTakingPictures(byte[] mReceiveData) {
         originalCommandData = mReceiveData;
@@ -885,9 +898,12 @@ public class SPGProtocol {
     }
 
     /**
-     * 上传图片数据,上传完后,2秒后发送上传结束标记
+     * 上传文件数据,上传完后,2秒后发送上传结束标记
+     *
+     * @param order1 上传指令
+     * @param order2 结束指令
      */
-    protected void handlerUploadPicture() {
+    protected void handlerUploadPicture(byte order1, byte order2) {
         try {
             int len = 0;
             int packIndex = 0;
@@ -909,25 +925,26 @@ public class SPGProtocol {
                 baos.write((byte) pack_low);
                 baos.write(buf);
                 dataDomain = baos.toByteArray();
-                setOrder(ORDER_85H);
+                setOrder(order1);
                 PowerOn();
                 baos.close();
                 Log.e("上传图片packIndex", "baleDataChar: " + packIndex);
             }
             fis.close();
             //上传图片数据2秒后再发送结束标记
-            stopUploadPicture();
+            stopUploadPicture(order2);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
     /**
-     * 图像数据上传结束标记
+     * 文件数据上传结束标记
      *
+     * @param order 结束指令
      * @throws IOException
      */
-    protected void stopUploadPicture() throws IOException {
+    protected void stopUploadPicture(byte order) throws IOException {
         isUpLocal = true;
         SystemClock.sleep(2000);
         Log.e("H6", "stopUploadPicture: " + "结束");
@@ -935,15 +952,19 @@ public class SPGProtocol {
         baos.write(channelNum);
         baos.write(preset);
         dataDomain = baos.toByteArray();
-        setOrder(ORDER_86H);
+        setOrder(order);
         PowerOn();
         baos.close();
     }
 
     /**
      * 补包处理
+     *
+     * @param tonicPackData 补包数据
+     * @param order1        上传图片指令
+     * @param oder2         结束指令
      */
-    protected void handlerTonicPack(byte[] tonicPackData) {
+    protected void handlerTonicPack(byte[] tonicPackData, byte order1, byte oder2) {
         try {
             if (tonicPackData != null) {
                 int pack_count = tonicPackData[12];
@@ -978,7 +999,7 @@ public class SPGProtocol {
                                     baos.write((byte) pack_low);
                                     baos.write(buf);
                                     dataDomain = baos.toByteArray();
-                                    setOrder(ORDER_85H);
+                                    setOrder(order1);
                                     PowerOn();
                                     Log.e("补包packIndex", "tonicPack: " + packIndex + "," + buf.length);
                                     break;
@@ -989,7 +1010,7 @@ public class SPGProtocol {
                     }
                     baos.close();
                     fis.close();
-                    stopUploadPicture();
+                    stopUploadPicture(oder2);
                 }
             }
         } catch (IOException e) {
