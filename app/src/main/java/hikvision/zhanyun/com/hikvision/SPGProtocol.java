@@ -1,10 +1,15 @@
 package hikvision.zhanyun.com.hikvision;
 
+import android.content.Context;
+
+import java.net.DatagramSocket;
 import android.annotation.SuppressLint;
 import android.os.Environment;
+import android.app.Activity;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.SystemClock;
 import android.util.Log;
-
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -23,6 +28,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+
+import static android.content.Context.MODE_PRIVATE;
+import static android.support.constraint.Constraints.TAG;
 
 
 /**
@@ -77,6 +85,7 @@ public class SPGProtocol {
     private byte[] version = {0x01, 0x02};
 
 
+
     //开机联络信息 00H
     private final byte[] START_CHAR = {0x68};
     private final byte[] END_CHAR = {0x16};
@@ -85,12 +94,15 @@ public class SPGProtocol {
     //校时 01H
     private final byte[] WHEN_THE_SCHOOL_VERSION = {};
 
+
     //设置终端密码 02H
-    private final byte[] TERMINAL_PWD_ORDER = {0x02};
     private final byte[] TERMINAL_PWD_VERSION = {(byte) 0xFFFF};
-    public String oldPassword;
-    public String newPassword;
+    public byte[] oldPassword;
+    public byte[]  newPassword;
     public boolean judge;
+    public String terminalPassword = String.valueOf(1234);
+
+
 
     //终端心跳信息 05H
     private byte[] signalRecordingTime = new byte[5];
@@ -230,7 +242,7 @@ public class SPGProtocol {
 
     private boolean isUpLocal = false;//保证单一上传图片
     private final int UPLOAD_IMAGE_PACK_DIVISOR = 256;
-    private final int MAX_UPLOAD_IMAGE_SIZE = 4000;
+    private final int MAX_UPLOAD_IMAGE_SIZE = 950;
     private byte[] originalCommandData;
     //TODO 需要修改初始值
     private byte channelNum = 3;//通道号
@@ -246,12 +258,13 @@ public class SPGProtocol {
     private int contrastTwo = 0;
     private int saturationTwo = 0;
     private Thread sendThread;
-    private byte[] dataDomain;//数据域
+    public byte[] dataDomain;//数据域
 
     private File pictureFile;
     private Timer timer;
     private final static long ONE_MINUTE = 60 * 1000;
     private final static long TWO_MINUTE = 2 * 1000;
+    private Context context;
 
     public void setOrder(byte order) {
         this.order = order;
@@ -345,8 +358,9 @@ public class SPGProtocol {
      *
      * @param listenerCallBack 回调接口
      */
-    public SPGProtocol(UdpListenerCallBack listenerCallBack) {
+    public SPGProtocol(UdpListenerCallBack listenerCallBack,Context context) {
         this.listenerCallBack = listenerCallBack;
+        this.context=context;
     }
 
     /**
@@ -424,21 +438,7 @@ public class SPGProtocol {
         setTimer(true, TWO_MINUTE);
     }
 
-    /**
-     * 设置终端密码
-     *
-     * @param judge true 修改密码，false密码错误
-     */
-    public void setTerminalPassword(boolean judge) {
-        if (judge) {
-            originalCommandData = mReceiveDatas;
-        } else {
-            originalCommandData = null;
-            dataDomain = TERMINAL_PWD_VERSION;
-        }
-        setOrder(ORDER_02H);
-        PowerOn();
-    }
+
 
     /**
      * 终端心跳信息
@@ -474,6 +474,7 @@ public class SPGProtocol {
      * @param queryCardNumb 主站卡号
      */
     public void queryMasterStation(byte[] ip, byte[] queryPort, byte[] queryCardNumb) {
+
         //查询端口
         originalCommandData = null;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -487,6 +488,21 @@ public class SPGProtocol {
             e.printStackTrace();
         }
         setOrder(ORDER_07H);
+        PowerOn();
+    }
+
+    public void theQueryTime(byte[] queryTime) {
+        //查询端口
+        originalCommandData = null;
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try {
+            baos.write(queryTime);
+            dataDomain = baos.toByteArray();
+            baos.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        setOrder(ORDER_0DH);
         PowerOn();
     }
 
@@ -571,7 +587,7 @@ public class SPGProtocol {
     /**
      * upd发送
      */
-    private void PowerOn() {
+    public void PowerOn() {
 
         sendThread = new Thread(new Runnable() {
             @Override
@@ -588,7 +604,9 @@ public class SPGProtocol {
                     SystemClock.sleep(10);
                     listenerCallBack.sendSuccess(order);
                     mSendData = buf;
-                    dateTime = HikVisionUtils.getInstance().getNetDvrTime().ToString();
+                    if (order == ORDER_01H) {
+                        dateTime = HikVisionUtils.getInstance().getNetDvrTime().ToString();
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                     listenerCallBack.onErrMsg(ERR_SEND_UDP);
@@ -630,8 +648,13 @@ public class SPGProtocol {
                     try {
                         socket.receive(receivePacket);
                         mReceiveData = receivePacket.getData();
-                        dateTimes = HikVisionUtils.getInstance().getNetDvrTime().ToString();
+                        if (order == ORDER_01H) {
+                            dateTimes = HikVisionUtils.getInstance().getNetDvrTime().ToString();
+                        }
+                        mReceiveDatas = mReceiveData;
+                        Log.i(TAG, "run: " + mReceiveDatas[11]);
                         if (mReceiveData != null) handlerOrder(mReceiveData[7]);
+
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -669,11 +692,12 @@ public class SPGProtocol {
                 else listenerCallBack.onErrMsg(ERR_ORDER_05H);
                 break;
             case ORDER_06H:
+                //更改主站IP，端口，卡号
                 changeMasterStationInfo(mReceiveData);
                 break;
             case ORDER_07H:
                 //查询主站IP,端口号，卡号
-                if (proofOrder()) listenerCallBack.receiveSuccess(order);
+                listenerCallBack.receiveSuccess(order);
                 break;
             case ORDER_08H:
                 handlerTerminalReset(mReceiveData);
@@ -687,6 +711,7 @@ public class SPGProtocol {
             case ORDER_0CH:
                 break;
             case ORDER_0DH:
+                listenerCallBack.receiveSuccess(order);
                 break;
             case ORDER_21H:
                 break;
@@ -730,20 +755,25 @@ public class SPGProtocol {
             case ORDER_88H:
                 break;
             case ORDER_89H:
+                listenerCallBack.receiveSuccess(order);
                 break;
             case ORDER_8AH:
+                listenerCallBack.receiveSuccess(order);
                 break;
             case ORDER_8BH:
                 break;
             case ORDER_93H:
+                theMainRequestFilmingShortVideo(mReceiveData);
                 break;
             case ORDER_94H:
+                handlerUploadPicture(ORDER_95H, ORDER_96H);
                 break;
             case ORDER_95H:
                 break;
             case ORDER_96H:
                 break;
             case ORDER_97H:
+                handlerTonicPack(mReceiveData, ORDER_95H, ORDER_96H);
                 break;
         }
         mReceiveData = null;
@@ -794,13 +824,13 @@ public class SPGProtocol {
             dateTimes = null;
         } else if (mReceiveData != null) {//被动校时
             //TODO 需要改
-            HikVisionUtils.getInstance().setDateTime(mReceiveData[10] + 2000,
+            boolean ac = HikVisionUtils.getInstance().setDateTime(mReceiveData[10] + 2000,
                     mReceiveData[11],
                     mReceiveData[12],
                     mReceiveData[13],
                     mReceiveData[14],
                     mReceiveData[15]);
-
+            Log.i(TAG, "handlerSchoolTime: " + ac);
             //被动校时
             originalCommandData = mReceiveData;
             setOrder(ORDER_01H);
@@ -813,10 +843,22 @@ public class SPGProtocol {
      * 设置终端密码
      */
     protected void setTerminalPassword(byte[] mReceiveData) {
-        oldPassword = Arrays.toString(new byte[]{mReceiveData[10],
-                mReceiveData[11], mReceiveData[12], mReceiveData[13]});
-        newPassword = Arrays.toString(new byte[]{mReceiveData[14],
-                mReceiveData[15], mReceiveData[16], mReceiveData[17]});
+        oldPassword = new byte[]{mReceiveData[10], mReceiveData[11], mReceiveData[12], mReceiveData[13]};
+        String pass=new String(oldPassword);
+        if (pass.equals(terminalPassword)) {
+            newPassword = new byte[]{mReceiveData[14], mReceiveData[15], mReceiveData[16], mReceiveData[17]};
+            terminalPassword = new String(newPassword);
+            SharedPreferences sharedPreferences = context.getSharedPreferences("password", MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putString("password",terminalPassword);
+            editor.apply();
+        } else {
+            setOrder(ORDER_02H);
+            dataDomain = TERMINAL_PWD_VERSION;
+            PowerOn();
+        }
+
+
         mReceiveDatas = mReceiveData;
         listenerCallBack.receiveSuccess(order);
     }
@@ -833,6 +875,7 @@ public class SPGProtocol {
         TheOnlineTime = mReceiveData[19] + mReceiveData[20];//在线时长
         HardwareResetTime = new byte[]{mReceiveData[21], mReceiveData[22], mReceiveData[23]};//硬件重启时间点
         CipherCertification = new byte[]{mReceiveData[24], mReceiveData[25], mReceiveData[26], mReceiveData[27]};//密文认证
+        //TODO 休眠，在线
         listenerCallBack.receiveSuccess(order);
     }
 
@@ -840,10 +883,10 @@ public class SPGProtocol {
      * 更改主站IP地址、端口号和卡号 06H
      */
     protected void changeMasterStationInfo(byte[] mReceiveData) {
+        //TODO 无权限
         originalCommandData = mReceiveData;
         setOrder(ORDER_06H);
         PowerOn();
-
         if (judges) {
             if (judge) {
                 dataDomain = new byte[]{mReceiveData[10], mReceiveData[11],
@@ -931,6 +974,21 @@ public class SPGProtocol {
         PowerOn();
         if (listenerCallBack != null) listenerCallBack.receiveSuccess(order);
     }
+
+    /**
+     * 主站请求拍摄短视频
+     *
+     * @param mReceiveData
+     */
+    protected void theMainRequestFilmingShortVideo(byte[] mReceiveData) {
+        originalCommandData = mReceiveData;
+        setOrder(ORDER_93H);
+        PowerOn();
+        Log.i(TAG, "receiveSuccess: " + mReceiveDatas[11]);
+        if (listenerCallBack != null) listenerCallBack.receiveSuccess(order);
+
+    }
+
 
     /**
      * 上传文件数据,上传完后,2秒后发送上传结束标记
