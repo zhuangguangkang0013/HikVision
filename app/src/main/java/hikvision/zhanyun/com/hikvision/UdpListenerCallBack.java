@@ -1,7 +1,5 @@
 package hikvision.zhanyun.com.hikvision;
 
-import java.util.List;
-
 /**
  * Created by ZY004Engineer on 2018/6/12.
  */
@@ -11,33 +9,70 @@ public interface UdpListenerCallBack {
     /**
      * 发送udp成功
      */
-    void sendSuccess(byte order);
+    public void sendSuccess(byte order);
 
     /**
      * 接受udp成功
      *
      * @param order 服务器发送的信息
      */
-    void receiveSuccess(byte order);
+    public void receiveSuccess(byte order);
 
     /**
      * @param message 错误信息
      */
-    void onErrMsg(int message);
-
-
-    /**
-     * 用于上传照片
-     *
-     * @return 取对应文件数据，以指定的字节放入list数组
-     */
-    List<byte[]> getFileData();
+    public void onErrMsg(int message);
 
     /**
-     * 用于上传照片
+     * 摄像机远程调节
      *
-     * @return 获取图片一共包数，以4000字节切割的
+     * @param channelNum  通道号
+     * @param order       指令
+     * @param preposition 预置位
      */
-    int getPackIndex();
+    public void remoteAdjustmentCamera(int channelNum, int order, int preposition);
+
+    /**
+     * 使用通道号1
+     *
+     * @param colorSelection 色彩选择
+     * @param imageSize      图像大小
+     * @param brightness     亮度
+     * @param contrast       对比度
+     * @param saturation     饱和度
+     */
+    public void useChannelNumOne(int colorSelection, int imageSize, int brightness, int contrast, int saturation);
+
+    /**
+     * 使用通道号2
+     *
+     * @param colorSelection 色彩选择
+     * @param imageSize      图像大小
+     * @param brightness     亮度
+     * @param contrast       对比度
+     * @param saturation     饱和度
+     */
+    public void useChannelNumTwo(int colorSelection, int imageSize, int brightness, int contrast, int saturation);
+
+    /**
+     * 设置设备时间
+     *
+     * @return
+     */
+    public boolean setDvrTime(int dwYear, int dwMonth, int dwDay, int dwHour, int dwMinute, int dwSecond);
+
+    /**
+     * 获取设备时间
+     *
+     * @return
+     */
+    public String getDvrTime();
+
+    /**
+     * 设置预置点(只对通道号1有效)
+     *
+     * @param preset 预置点
+     */
+    public void setPreset(int preset);
 
 }

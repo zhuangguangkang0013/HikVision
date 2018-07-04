@@ -1,6 +1,7 @@
 package hikvision.zhanyun.com.hikvision;
 
 import android.os.Environment;
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.hikvision.netsdk.ExceptionCallBack;
@@ -8,7 +9,6 @@ import com.hikvision.netsdk.HCNetSDK;
 import com.hikvision.netsdk.NET_DVR_DEVICEINFO_V30;
 import com.hikvision.netsdk.NET_DVR_JPEGPARA;
 import com.hikvision.netsdk.NET_DVR_TIME;
-import com.hikvision.netsdk.PTZCommand;
 
 import java.io.File;
 
@@ -131,8 +131,6 @@ public class HikVisionUtils {
     }
 
     /**
-     * <<<<<<< HEAD
-     *
      * @return 获取规约6个字节的时间
      */
     public byte[] getNetDvrTimeByte() {
@@ -146,24 +144,15 @@ public class HikVisionUtils {
     }
 
     /**
-     *
-     *
-     * @param   NET_DVR_Login_V40等登录接口的返回值
-     *                i1
-     *                i2
-     *                i3
-     */
-    /**
      * 终端复位
      *
-     * @param i1 通道号
      * @param i2 操作云台预置点命令  SET_PRESET--设置预置点  CLE_PRESET--清除预置点   GOTO_PRESET--转到预置点
      * @param i3 预置点的序号
      * @return
      */
-    public boolean terminalReduction(int i1, int i2, int i3) {
+    public boolean terminalReduction(int i2, int i3) {
         return HCNetSDK.getInstance()
-                .NET_DVR_PTZPreset_Other(mLoginId, i1, i2, i3);
+                .NET_DVR_PTZPreset_Other(mLoginId, 1, i2, i3);
     }
 
     /**
@@ -194,62 +183,29 @@ public class HikVisionUtils {
      * 云台移动 NET_DVR_PTZControl_Other参数：(播放标记, 通道， 指令码, 开始标记0或停止标记1)
      *
      * @param orientation 九宫格数字方向
-     * @param m_iLogID    播放标记
-     * @param tag         开始标记0 停止标记1
      */
-    public void onPTZControl(int orientation, int m_iLogID, int tag) {
-        if (m_iLogID < 0) {
+    public void onPTZControl(int orientation) {
+        if (mLoginId < 0) {
             return;
         }
-        switch (orientation) {
-            case 9:
-                HCNetSDK.getInstance().NET_DVR_PTZControl_Other(m_iLogID, 1,
-                        PTZCommand.UP_RIGHT, tag);
-                break;
-            case 8:
-                HCNetSDK.getInstance().NET_DVR_PTZControl_Other(m_iLogID, 1,
-                        PTZCommand.TILT_UP, tag);
-                break;
-            case 7:
-                HCNetSDK.getInstance().NET_DVR_PTZControl_Other(m_iLogID, 1,
-                        PTZCommand.UP_LEFT, tag);
-                break;
-            case 6:
-                HCNetSDK.getInstance().NET_DVR_PTZControl_Other(m_iLogID, 1,
-                        PTZCommand.PAN_RIGHT, tag);
-                break;
-            case 5:
-                HCNetSDK.getInstance().NET_DVR_PTZControl_Other(m_iLogID, 1,
-                        PTZCommand.PAN_AUTO, tag);
-                break;
-            case 4:
-                HCNetSDK.getInstance().NET_DVR_PTZControl_Other(m_iLogID, 1,
-                        PTZCommand.PAN_LEFT, tag);
-                break;
-            case 3:
-                HCNetSDK.getInstance().NET_DVR_PTZControl_Other(m_iLogID, 1,
-                        PTZCommand.DOWN_RIGHT, tag);
-                break;
-            case 2:
-                HCNetSDK.getInstance().NET_DVR_PTZControl_Other(m_iLogID, 1,
-                        PTZCommand.TILT_DOWN, tag);
-                break;
-            case 1:
-                HCNetSDK.getInstance().NET_DVR_PTZControl_Other(m_iLogID, 1,
-                        PTZCommand.DOWN_LEFT, tag);
-                break;
-            default:
-                break;
+        boolean is = HCNetSDK.getInstance().NET_DVR_PTZControl_Other(mLoginId, 1, orientation, 0);
+        if (!is) {
+            Log.e(TAG, "onPTZControl: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
+            return;
         }
+        SystemClock.sleep(200);
+        HCNetSDK.getInstance().NET_DVR_PTZControl_Other(mLoginId, 1, orientation, 1);
     }
-
 
     /**
      * 拍照并保存照片
      *
+     * @param filePath  文件路径
+     * @param fileName  文件名
+     * @param imageSize 图片大小
      * @return true成功，则失败
      */
-    public boolean onCaptureJPEGPicture(String filePath, int imageSize) {
+    public boolean onCaptureJPEGPicture(String filePath, String fileName, int imageSize) {
         NET_DVR_JPEGPARA netDvrJpegpara = new NET_DVR_JPEGPARA();
         switch (imageSize) {
             case 1://320 X 240
@@ -303,7 +259,7 @@ public class HikVisionUtils {
         if (!file.exists()) {
             file.mkdirs();
         }
-        FILE_PATH = filePath + "picture.jpg";
+        FILE_PATH = filePath + fileName;
         return HCNetSDK.getInstance().NET_DVR_CaptureJPEGPicture(mLoginId, 1, netDvrJpegpara, FILE_PATH);
     }
 

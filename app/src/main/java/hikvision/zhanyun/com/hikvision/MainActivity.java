@@ -12,6 +12,7 @@ import android.util.Log;
 
 import com.hikvision.netsdk.HCNetSDK;
 import com.hikvision.netsdk.PTZCommand;
+import com.hikvision.netsdk.PTZPresetCmd;
 
 import java.io.File;
 import java.util.Arrays;
@@ -26,10 +27,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private SPGProtocol spgProtocol;
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private String password = "admin12345";
-    private String http = "171.221.207.59";
+    private String http = "10.18.67.225";
     private int httpPort = 17116;
-    //    private String http = "10.18.67.225";
-//    private int httpPort = 8989;
     private String cardNumber = "ZJ0001";
     public Handler mHanlder = new Handler();
     //心跳包间隔
@@ -58,11 +57,11 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             .getAbsolutePath() + File.separator + "HikVisionPicture/";
 
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
         verifyStoragePermissions(this);
         hikVisionUtils = HikVisionUtils.getInstance();
         Boolean isSuccess = hikVisionUtils.initSDK();
@@ -104,9 +103,22 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         Log.i(TAG, "onCreate: " + c);
         Log.i(TAG, "onCreate: " + d);
         mHanlder.postDelayed(boot, 0);
-//        spgProtocol.uploadFile(filePath+"picture.jpg");
+//        spgProtocol.bootContactInfo();
+//
+//        String fileName = "picture.jpg";
+//        spgProtocol.uploadFile(filePath + fileName);
+//        for (int i = 0; i < 50; i++) {
+//            try {
+//                Thread.sleep(2000);
+//                hikVisionUtils.onPTZControl(9, m_iLogId, 0);
+//                SystemClock.sleep(200);
+//                hikVisionUtils.onPTZControl(9, m_iLogId, 1);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//
+//        }
     }
-
 
 
     public static void verifyStoragePermissions(Activity activity) {
@@ -160,7 +172,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 break;
             case SPGProtocol.ORDER_08H:
                 boolean trReturn;
-                trReturn = hikVisionUtils.terminalReduction(3, PTZCommand.GOTO_PRESET, 1);
+                trReturn = hikVisionUtils.terminalReduction(PTZCommand.GOTO_PRESET, 1);
                 if (!trReturn) {
                     int LastError = hikVisionUtils.GetLastError();
                     Log.d("LastError:", String.valueOf(LastError));
@@ -240,6 +252,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 spgProtocol.schoolTime();
                 break;
             case SPGProtocol.ORDER_01H:
+                byte[] time1 = hikVisionUtils.getNetDvrTimeByte();
+                spgProtocol.terminalHeartBeatInfo(time1, (byte) 0x64, (byte) 0x044);
+
 //                //校时成功后停止校时功能
 //                mHanlder.removeCallbacks(WhenTheSchool);
 //                //开启心跳包
@@ -270,6 +285,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_04H:
                 break;
             case SPGProtocol.ORDER_05H:
+
                 //判断心跳包返回的指令  如果是原指令择每隔两分钟重复发送心跳
                 if (spgProtocol.mReceiveData != null && spgProtocol.mReceiveData[7] == SPGProtocol.ORDER_05H) {
                     Log.i(TAG, "run: " + spgProtocol.mReceiveData[7]);
@@ -373,17 +389,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_82H:
                 break;
             case SPGProtocol.ORDER_83H:
-                hikVisionUtils.terminalReduction(spgProtocol.getChannelNum(), PTZCommand.GOTO_PRESET, spgProtocol.getPreset());
-
-                //上传图片
-                Boolean isSuccess = hikVisionUtils.onCaptureJPEGPicture(filePath, spgProtocol.getImageSizeOne());
-                if (!isSuccess) {
-                    HCNetSDK.getInstance().NET_DVR_GetLastError();
-                    Log.e(TAG, "receiveSuccess: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
-                    return;
-                }
-
-
                 break;
             case SPGProtocol.ORDER_84H:
                 break;
@@ -392,7 +397,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_86H:
                 break;
             case SPGProtocol.ORDER_87H:
-
                 break;
             case SPGProtocol.ORDER_88H:
                 break;
@@ -483,7 +487,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 break;
             case SPGProtocol.ERR_ORDER_08H:
                 boolean trReturn;
-                trReturn = hikVisionUtils.terminalReduction(3, PTZCommand.GOTO_PRESET, 1);
+                trReturn = hikVisionUtils.terminalReduction(PTZCommand.GOTO_PRESET, 1);
                 if (!trReturn) {
                     int LastError = hikVisionUtils.GetLastError();
                     Log.d("LastError:", String.valueOf(LastError));
@@ -550,14 +554,74 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         }
     }
 
-
     @Override
-    public List<byte[]> getFileData() {
-        return fileData;
+    public void remoteAdjustmentCamera(int channelNum, int order, int preposition) {
+        switch (order) {
+            case 1://打开摄像机电源
+                break;
+            case 2://摄像机调节到指定预置点
+                boolean is = hikVisionUtils.terminalReduction(PTZPresetCmd.GOTO_PRESET, preposition);
+                if (!is) {
+                    Log.e(TAG, "remoteAdjustmentCamera: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
+                }
+                break;
+            case 3://向上调节1个单位(一个单位指角度值域的1%)
+                hikVisionUtils.onPTZControl(PTZCommand.TILT_UP);
+                break;
+            case 4://向下调节1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.TILT_DOWN);
+                break;
+            case 5: //向左调节1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.PAN_LEFT);
+                break;
+            case 6://向右调节1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.PAN_RIGHT);
+                break;
+            case 7://焦距向远方调节1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.ZOOM_IN);
+                break;
+            case 8://焦距向近处调节1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.ZOOM_OUT);
+                break;
+            case 9://保存当前位置为谋预置点
+                hikVisionUtils.terminalReduction(PTZPresetCmd.SET_PRESET, preposition);
+                break;
+            case 10:// 关闭摄像机电源
+                break;
+        }
     }
 
     @Override
-    public int getPackIndex() {
-        return packIndex;
+    public void useChannelNumOne(int colorSelection, int imageSize, int brightness, int contrast, int saturation) {
+        //上传图片
+        String fileName = "picture.jpg";
+        Boolean isSuccess = hikVisionUtils.onCaptureJPEGPicture(filePath, fileName, imageSize);
+        if (!isSuccess) {
+            HCNetSDK.getInstance().NET_DVR_GetLastError();
+            Log.e(TAG, "receiveSuccess: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
+            return;
+        }
+        spgProtocol.uploadFile(filePath, fileName);
     }
+
+    @Override
+    public void useChannelNumTwo(int colorSelection, int imageSize, int brightness, int contrast, int saturation) {
+
+    }
+
+    @Override
+    public boolean setDvrTime(int dwYear, int dwMonth, int dwDay, int dwHour, int dwMinute, int dwSecond) {
+        return hikVisionUtils.setDateTime(dwYear, dwMonth, dwDay, dwHour, dwMinute, dwSecond);
+    }
+
+    @Override
+    public String getDvrTime() {
+        return hikVisionUtils.getNetDvrTime().ToString();
+    }
+
+    @Override
+    public void setPreset(int preset) {
+        hikVisionUtils.terminalReduction(PTZPresetCmd.GOTO_PRESET, preset);
+    }
+
 }
