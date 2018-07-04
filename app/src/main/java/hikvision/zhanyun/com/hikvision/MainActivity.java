@@ -1,23 +1,44 @@
 package hikvision.zhanyun.com.hikvision;
 
 import android.app.Activity;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Message;
+import android.os.SystemClock;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 
 import com.hikvision.netsdk.HCNetSDK;
+import com.hikvision.netsdk.INTER_PREVIEWINFO;
+import com.hikvision.netsdk.NET_DVR_ALARMHOST_OTHER_STATUS;
+import com.hikvision.netsdk.NET_DVR_CLIENTINFO;
+import com.hikvision.netsdk.NET_DVR_DEVICEINFO_V30;
+import com.hikvision.netsdk.NET_DVR_PREVIEWINFO;
+import com.hikvision.netsdk.NET_DVR_STREAM_INFO;
 import com.hikvision.netsdk.PTZCommand;
+import com.hikvision.netsdk.PlaybackCallBack;
+import com.hikvision.netsdk.RealPlayCallBack;
 
+import org.MediaPlayer.PlayM4.Player;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Timer;
-import java.util.TimerTask;
 
 
 public class MainActivity extends AppCompatActivity implements UdpListenerCallBack {
@@ -27,14 +48,20 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private SPGProtocol spgProtocol;
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private String password = "admin12345";
-    private String http = "171.221.207.59";
-    private int httpPort = 17116;
-    //    private String http = "10.18.67.225";
-//    private int httpPort = 8989;
-    private String cardNumber = "ZJ0001";
+    //    private String http = "171.221.207.59";
+//    private int httpPort = 17116;
+//        private String http = "10.18.67.225";
+    private String http = "192.168.144.100";
+    private int httpPort = 9090;
+    //    private int httpPort = 9898;
+    int acb;
+    //主站卡号
+    private byte[] carNumbers = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
+
+    private String cardNumber = "ZJ0002";
     public Handler mHanlder = new Handler();
     //心跳包间隔
-    private int TheHeartbeatPacketsTime = 60;//秒钟
+    private int TheHeartbeatPacketsTime = 600;//秒钟
     private int TheHeartbeatPacketsTimes = TheHeartbeatPacketsTime * 1000;
     //采样间隔
     private int SamplingInterval = 600;//十分钟
@@ -55,14 +82,20 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private int packIndex;
     private int count = -1;
     private Timer timer;
-    //文件路径
-    private String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/";
     //视频文件名字
     private String fileName = "test.mp4";
+    private String filePath = Environment.getExternalStorageDirectory()
+            .getAbsolutePath() + File.separator + "HikVisionPicture/";
+    private SharedPreferences sharedPreferences;
+    private SurfaceView surfaceView;
+    private    int m_iPort = -1;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        surfaceView = findViewById(R.id.surFaceView);
         verifyStoragePermissions(this);
         hikVisionUtils = HikVisionUtils.getInstance();
         Boolean isSuccess = hikVisionUtils.initSDK();
@@ -73,40 +106,27 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         String address = "10.18.67.64";
         int port = 8000;
         String user = "admin";
-
         m_iLogId = hikVisionUtils.loginNormalDevice(address, port, user, password);
-
         if (m_iLogId < 0) {
             Log.e(TAG, "This device login failed!");
             return;
         } else {
             Log.i(TAG, "m_iLogID=" + m_iLogId);
         }
-        spgProtocol = new SPGProtocol(this);
+        spgProtocol = new SPGProtocol(this, this);
         spgProtocol.InitUdp(http, httpPort, cardNumber);
 
-        int a;
-        int b;
-        int c;
-        int d;
-        //先找到IP地址字符串中.的位置
-        int position1 = http.indexOf(".");
-        int position2 = http.indexOf(".", position1 + 1);
-        int position3 = http.indexOf(".", position2 + 1);
-        //将每个.之间的字符串转换成整型
-        a = Integer.parseInt(http.substring(0, position1));
-        b = Integer.parseInt(http.substring(position1 + 1, position2));
-        c = Integer.parseInt(http.substring(position2 + 1, position3));
-        d = Integer.parseInt(http.substring(position3 + 1));
-
-        Log.i(TAG, "onCreate: " + a);
-        Log.i(TAG, "onCreate: " + b);
-        Log.i(TAG, "onCreate: " + c);
-        Log.i(TAG, "onCreate: " + d);
         mHanlder.postDelayed(boot, 0);
+
+        //初始化终端密码
+        sharedPreferences = getSharedPreferences("password", MODE_PRIVATE);
+        String password = sharedPreferences.getString("password", null);
+        if (password != null) {
+            spgProtocol.terminalPassword = password;
+        }
+
+        initView();
     }
-
-
 
     public static void verifyStoragePermissions(Activity activity) {
 
@@ -133,7 +153,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         public void run() {
             spgProtocol.bootContactInfo();
 //            String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/picture.jpg";
-//            spgProtocol.uploadPicture(filePath);
+//            spgProtocol.uploadFile(filePath);
         }
     };
 
@@ -227,47 +247,24 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
     }
 
-    private int len = 0;
-    private TimerTask timerTask = new TimerTask() {
-        @Override
-        public void run() {
-            spgProtocol.schoolTime();
-            len++;
-            if (len == 3) {
-                timer.cancel();
-            }
-        }
-    };
-
     @Override
     public void receiveSuccess(byte order) {
         switch (order) {
             case SPGProtocol.ORDER_00H:
-                //成功后停止定时循环发送开机请求
+//                成功后停止定时循环发送开机请求
                 mHanlder.removeCallbacks(boot);
                 Log.i(TAG, "服务器返回了信息停止向服务器发送开机请求");
                 //开启校时功能
-//                mHanlder.postDelayed(WhenTheSchool, 5000);
-//                timer = new Timer();
-//                timer.schedule(timerTask, 1000, 10000);
-
+                mHanlder.postDelayed(WhenTheSchool, 5000);
+                spgProtocol.schoolTime();
                 break;
             case SPGProtocol.ORDER_01H:
                 //校时成功后停止校时功能
                 mHanlder.removeCallbacks(WhenTheSchool);
                 //开启心跳包
-                mHanlder.postDelayed(TheHeartbeatPackets, 1000);
+                mHanlder.postDelayed(TheHeartbeatPackets, 5 * 1000);
                 break;
             case SPGProtocol.ORDER_02H:
-                if (spgProtocol.oldPassword.equals(password)) {
-                    password = spgProtocol.newPassword;
-                    spgProtocol.judge = true;
-                    spgProtocol.setTerminalPassword(true);
-
-                } else {
-                    spgProtocol.judge = false;
-                    spgProtocol.setTerminalPassword(false);
-                }
                 break;
             case SPGProtocol.ORDER_03H:
                 if (password.equals(spgProtocol.password)) {
@@ -332,10 +329,13 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 }
                 break;
             case SPGProtocol.ORDER_07H:
-                //端口
-                int mainVersion = (httpPort & 0xFF00) >> 8;
-                int minorVersion = httpPort & 0xFF;
-                byte[] portNumber = {(byte) (mainVersion * 256 + minorVersion)};
+                //端口取高字节
+                byte mainVersion = (byte) ((httpPort & 0xFF00) >> 8);
+                //端口取低字节
+                byte minorVersion = (byte) (httpPort & 0xFF);
+                //高字节*256+低字节
+                byte[] portNumber = new byte[]{(byte) (mainVersion * 256 + minorVersion)};
+                Log.i(TAG, "receiveSuccess: " + portNumber);
                 //IP
                 int a, b, c, d;
                 //先找到IP地址字符串中.的位置
@@ -347,10 +347,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 b = Integer.parseInt(http.substring(position1 + 1, position2));
                 c = Integer.parseInt(http.substring(position2 + 1, position3));
                 d = Integer.parseInt(http.substring(position3 + 1));
-
                 //启动
                 spgProtocol.queryMasterStation(new byte[]{(byte) a, (byte) b, (byte) c, (byte) d}
-                        , portNumber, new byte[]{Byte.parseByte(cardNumber)});
+                        , portNumber, carNumbers);
                 break;
             case SPGProtocol.ORDER_08H:
 //                spgProtocol.PowerOn();
@@ -364,6 +363,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_0CH:
                 break;
             case SPGProtocol.ORDER_0DH:
+                byte[] time = HikVisionUtils.getInstance().getNetDvrTimeByte();
+                spgProtocol.theQueryTime(time);
                 break;
             case SPGProtocol.ORDER_21H:
                 break;
@@ -394,7 +395,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                     Log.e(TAG, "receiveSuccess: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
                     return;
                 }
-                spgProtocol.uploadPicture(HikVisionUtils.FILE_PATH);
+
 
                 break;
             case SPGProtocol.ORDER_84H:
@@ -408,17 +409,72 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_88H:
                 break;
             case SPGProtocol.ORDER_89H:
+
+//                RealPlayCallBack realPlayCallBack = new RealPlayCallBack() {
+//                    @Override
+//                    public void fRealDataCallBack(int i, int i1, byte[] bytes, int i2) {
+//                        SystemClock.sleep(2000);
+//                        spgProtocol.setOrder(SPGProtocol.ORDER_89H);
+//                        byte[] buf = new byte[400];
+//                        SystemClock.sleep(100);
+//                        ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
+//                        try {
+//                            while (inputStream.read(buf) != -1) {
+//                                SystemClock.sleep(1000);
+//                                spgProtocol.dataDomain = buf;
+//                                spgProtocol.PowerOn();
+//                            }
+//                        } catch (IOException e) {
+//                            e.printStackTrace();
+//                        }
+//                    }
+//                };
+//                INTER_PREVIEWINFO previewinfo = new INTER_PREVIEWINFO();
+//                previewinfo.lChannel = 1;
+//                previewinfo.dwStreamType = 0;
+//                previewinfo.dwLinkMode = 4;
+//                previewinfo.bBlocked = 1;
+//                previewinfo.bPassbackRecord = 0;
+//                previewinfo.byPreviewMode = (byte) 0;
+//                previewinfo.byProtoType = (byte) 1;
+//
+//                acb = HCNetSDK.getInstance().NET_DVR_RealPlay_V40(m_iLogId, previewinfo, realPlayCallBack, null);
+//                HCNetSDK.getInstance().NET_DVR_SaveRealData(acPb, filePath + fileName);
+//                Log.i(TAG, "onCreate: " + acb);
+
+                RealPlayCallBack fRealDataCallBack = getRealPlayerCbf();
+                if (fRealDataCallBack == null) {
+
+                    Log.e(TAG, "fRealDataCallBack object is failed!");
+                    return;
+                }
+
+                NET_DVR_PREVIEWINFO previewInfo = new NET_DVR_PREVIEWINFO();
+                previewInfo.lChannel = 1;
+                previewInfo.dwStreamType = 1;                                                             //子码流
+                previewInfo.bBlocked = 1;
+                acb = HCNetSDK.getInstance().NET_DVR_RealPlay_V40(m_iLogId, previewInfo, fRealDataCallBack);
+                Log.i(TAG, "receiveSuccess: " + acb);
+
                 break;
             case SPGProtocol.ORDER_8AH:
+                HCNetSDK.getInstance().NET_DVR_StopSaveRealData(acb);
+                HCNetSDK.getInstance().NET_DVR_StopRealPlay(acb);
                 break;
             case SPGProtocol.ORDER_8BH:
                 break;
             case SPGProtocol.ORDER_93H:
-                if(spgProtocol.mReceiveDatas[11] == 0){
-                hikVisionUtils.onCaptureVideo(4,1,0,0,0,1,0,filePath,fileName,10000);
-                spgProtocol.uploadPicture(filePath+fileName);}
-                else
-                    //TODO 调整相机预置位置后再开启拍摄
+                //移动摄像头
+//                    boolean as = hikVisionUtils.terminalReduction(1, PTZCommand.GOTO_PRESET, spgProtocol.mReceiveDatas[11]);
+                spgProtocol.setOrder(SPGProtocol.ORDER_93H);
+                spgProtocol.PowerOn();
+                int lChannel = spgProtocol.mReceiveDatas[10];
+                int dwStreamTpye = spgProtocol.mReceiveDatas[11];
+                int shootingTime = spgProtocol.mReceiveDatas[12];
+                //TODO 下发数据参数应用到配置参数，可能需要转换类型
+                hikVisionUtils.onCaptureVideo(4, lChannel, dwStreamTpye, 0, 0, 1, 0, filePath, fileName, shootingTime * 1000);
+                spgProtocol.uploadFile(filePath + fileName);
+
 
                 break;
             case SPGProtocol.ORDER_94H:
@@ -455,8 +511,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     //主动校时线程
     public Runnable WhenTheSchool = new Runnable() {
         public void run() {
-            spgProtocol.schoolTime();
 
+            mHanlder.postDelayed(this, 5000);
         }
     };
 
@@ -576,5 +632,122 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     @Override
     public int getPackIndex() {
         return packIndex;
+    }
+
+
+    private RealPlayCallBack getRealPlayerCbf() {
+        RealPlayCallBack cbf = new RealPlayCallBack() {
+            public void fRealDataCallBack(int iRealHandle, int iDataType, byte[] pDataBuffer, int iDataSize) {
+                // 播放通道1
+//                Player.getInstance().setStreamOpenMode(m_iPort, 0);
+//                m_iPort = Player.getInstance().getPort();
+//                Player.getInstance().openStream(-1, pDataBuffer, iDataSize, 2 * 1024 * 1024);
+//           boolean a =   Player.getInstance().play(-1, surfaceView.getHolder());
+//                Log.i(TAG, "fRealDataCallBack: "+a);
+                processRealData(1, iDataType, pDataBuffer, iDataSize, Player.STREAM_REALTIME);
+//                spgProtocol.setOrder(SPGProtocol.ORDER_89H);
+//                byte[] buf = new byte[400];
+//                ByteArrayInputStream inputStream = new ByteArrayInputStream(pDataBuffer);
+//                try {
+//                    inputStream.read(buf);
+//                } catch (IOException e1) {
+//                    e1.printStackTrace();
+//                }
+//                SystemClock.sleep(1000);
+//                spgProtocol.dataDomain = buf;
+//                spgProtocol.PowerOn();
+            }
+        };
+        return cbf;
+    }
+
+
+    private void initView() {
+        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                surfaceView.getHolder().setFormat(PixelFormat.TRANSLUCENT);
+                Log.i(TAG, "surface is created" + m_iPort);
+                if (-1 == m_iPort) {
+                    return;
+                }
+                Surface surface = holder.getSurface();
+                if (true == surface.isValid()) {
+                    if (false == Player.getInstance().setVideoWindow(m_iPort, 0, holder)) {
+                        Log.e(TAG, "播放器设置或销毁显示区域失败!");
+                    }
+                }
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+                Log.i(TAG, "Player setVideoWindow release!" + m_iPort);
+                if (-1 == m_iPort) {
+                    return;
+                }
+                if (true == holder.getSurface().isValid()) {
+                    if (false == Player.getInstance().setVideoWindow(m_iPort, 0, null)) {
+                        Log.e(TAG, "播放器设置或销毁显示区域失败!");
+                    }
+                }
+            }
+        });
+    }
+
+    public  void processRealData(int iPlayViewNo, int iDataType, byte[] pDataBuffer, int iDataSize, int iStreamMode) {
+        if (HCNetSDK.NET_DVR_SYSHEAD == iDataType) {
+            if (m_iPort >= 0) {
+                return;
+            }
+            m_iPort = Player.getInstance().getPort();
+            if (m_iPort == -1) {
+                Log.e(TAG, "获取端口失败！: " + Player.getInstance().getLastError(m_iPort));
+                return;
+            }
+            Log.i(TAG, "获取端口成功！: " + m_iPort);
+            if (iDataSize > 0) {
+                if (!Player.getInstance().setStreamOpenMode(m_iPort, iStreamMode))  //set stream mode
+                {
+                    Log.e(TAG, "设置流播放模式失败！");
+                    return;
+                }
+                if (!Player.getInstance().openStream(m_iPort, pDataBuffer, iDataSize, 2 * 1024 * 1024)) //open stream
+                {
+                    Log.e(TAG, "打开流失败！");
+                    return;
+                }
+                if (!Player.getInstance().play(m_iPort, surfaceView.getHolder())) {
+                    Log.e(TAG, "播放失败！");
+                    return;
+                }
+                if (!Player.getInstance().playSound(m_iPort)) {
+                    Log.e(TAG, "以独占方式播放音频失败！失败码 :" + Player.getInstance().getLastError(m_iPort));
+                    return;
+                }
+            }
+        } else {
+            if (!Player.getInstance().inputData(m_iPort, pDataBuffer, iDataSize)) {
+//		    		Log.e(TAG, "inputData failed with: " + Player.getInstance().getLastError(m_iPort));
+                for (int i = 0; i < 4000 && -1 >= 0; i++) {
+                    if (!Player.getInstance().inputData(m_iPort, pDataBuffer, iDataSize))
+                        Log.e(TAG, "输入流数据失败: " + Player.getInstance().getLastError(m_iPort));
+                    else
+                        break;
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+
+                    }
+                }
+            }
+
+        }
+
     }
 }

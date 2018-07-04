@@ -1,18 +1,29 @@
 package hikvision.zhanyun.com.hikvision;
 
+import android.graphics.PixelFormat;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Message;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 
 import com.hikvision.netsdk.ExceptionCallBack;
 import com.hikvision.netsdk.HCNetSDK;
 import com.hikvision.netsdk.INTER_PREVIEWINFO;
 import com.hikvision.netsdk.NET_DVR_DEVICEINFO_V30;
 import com.hikvision.netsdk.NET_DVR_JPEGPARA;
+import com.hikvision.netsdk.NET_DVR_PREVIEWINFO;
 import com.hikvision.netsdk.NET_DVR_TIME;
 import com.hikvision.netsdk.PTZCommand;
+import com.hikvision.netsdk.RealPlayCallBack;
+
+import org.MediaPlayer.PlayM4.Player;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
 
 /**
  * Created by ZY004Engineer on 2018/6/11.
@@ -25,7 +36,6 @@ public class HikVisionUtils {
     private int mLoginId = -1;
     public static String FILE_PATH = null;
     private NET_DVR_TIME netDvrTime = new NET_DVR_TIME();
-
     public static HikVisionUtils getInstance() {
 
         if (mInstance == null) {
@@ -343,4 +353,5 @@ public class HikVisionUtils {
         HCNetSDK.getInstance().NET_DVR_StopSaveRealData(acb);
         HCNetSDK.getInstance().NET_DVR_StopRealPlay(acb);
     }
+
 }
