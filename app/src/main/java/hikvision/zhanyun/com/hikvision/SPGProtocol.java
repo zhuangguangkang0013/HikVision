@@ -1,5 +1,7 @@
 package hikvision.zhanyun.com.hikvision;
 
+import android.annotation.SuppressLint;
+import android.os.Environment;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -12,10 +14,13 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -162,6 +167,23 @@ public class SPGProtocol {
     //主站卡号
     public byte[] queryCardNumber;
 
+    //主站查询终端文件列表 71H
+    //获取文件属性
+    public int filesNumber;//需传输的文件个数N //
+    List<String> fileNames = new ArrayList<String>();// 文件名集合
+    List<Integer> fileLengths = new ArrayList<Integer>();// 文件大小集合
+    List<String> fileTimes = new ArrayList<String>();// 文件生成时间集合
+    @SuppressLint("SimpleDateFormat")
+    SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    Calendar calendar = Calendar.getInstance();
+
+    //装置请求上送文件 73H
+    String fileName;
+    Integer fileLength;
+    String fileTime;
+
+    //文件存储路径
+    public String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/";
 
     //ErrMsg 信息 标识
     public static final int ERR_SEND_UDP = 1;
@@ -604,6 +626,7 @@ public class SPGProtocol {
                     if (socket == null) continue;
                     byte[] buf = new byte[maxPacketLength];
                     DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
+                    Log.e("123", "run: "+new String(buf).trim());
                     try {
                         socket.receive(receivePacket);
                         mReceiveData = receivePacket.getData();
@@ -670,8 +693,13 @@ public class SPGProtocol {
             case ORDER_30H:
                 break;
             case ORDER_71H:
+                filesNumber = mReceiveData[10];
+                listenerCallBack.receiveSuccess(order);
                 break;
             case ORDER_72H:
+                setOrder(order);
+                PowerOn();
+                uploadingFiles();
                 break;
             case ORDER_73H:
                 break;
@@ -840,14 +868,21 @@ public class SPGProtocol {
      * 终端复位
      */
     protected void handlerTerminalReset(byte[] mReceiveData) {
-        String NowPassword = String.valueOf(mReceiveData[10] + mReceiveData[11] + mReceiveData[12] + mReceiveData[13]);
+
+        byte[] receive = new byte[]{(mReceiveData[10]), mReceiveData[11]
+                , mReceiveData[12], mReceiveData[13]};
+        String NowPassword = new String(receive);
+//        String NowPassword = String.valueOf((char) mReceiveData[10]) + String.valueOf((char) mReceiveData[11])
+//                + String.valueOf((char) mReceiveData[12]) + String.valueOf((char) mReceiveData[13]);
         if (NowPassword.equals("1234")) {
             dataDomain = new byte[]{mReceiveData[10], mReceiveData[11],
                     mReceiveData[12], mReceiveData[13]};
+            setOrder(mReceiveData[7]);
+            listenerCallBack.receiveSuccess(order);
         } else {
             dataDomain = TERMINAL_RESET;
         }
-        listenerCallBack.receiveSuccess(order);
+        PowerOn();
     }
 
     /**
@@ -1042,4 +1077,185 @@ public class SPGProtocol {
         }
         return count == 8;
     }
+
+    /**
+     * 71H上传文件列表
+     */
+    public void setFileNameList() {
+        getFileNameList();
+        int num = 0;
+        if (filesNumber == 0) {
+            num = fileTimes.size() / 9 + 1;
+        } else if (filesNumber > 0) {
+            num = filesNumber / 9 + 1;
+        }
+        try {
+            for (int j = 0; j < num; j++) {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                baos.write((byte) filesNumber);
+                for (int i = 0; i <= 9; i++) {
+                    if (getFileList(i + j * 9) == null) {
+                        break;
+                    }
+                    baos.write(getFileList(i + j * 9));
+                }
+                dataDomain = baos.toByteArray();
+                baos.close();
+                setOrder(mReceiveData[7]);
+                PowerOn();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 单个文件信息的封包
+     *
+     * @param i 第i个文件
+     * @return 第i个文件信息
+     */
+    public byte[] getFileList(int i) {
+        byte[] filesList = new byte[108];
+        //文件名
+        byte[] name = fileNames.get(i).getBytes();
+        //文件生成时间
+        Date date = null;
+        try {
+            date = format.parse(String.valueOf(fileTimes.get(i)));
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        calendar.setTime(date);
+        int year = calendar.get(Calendar.YEAR) - 2000;
+        int month = calendar.get(Calendar.MONTH) + 1;
+        int day = calendar.get(Calendar.DAY_OF_MONTH);
+        int hour = calendar.get(Calendar.HOUR);
+        int minute = calendar.get(Calendar.MINUTE);
+        int second = calendar.get(Calendar.SECOND);
+        //文件大小
+        int length = fileLengths.get(i);
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bos);
+        byte[] lengthList;
+        try {
+            out.writeShort(length);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        lengthList = bos.toByteArray();
+
+        for (int j = 0; j < filesList.length; j++) {
+            if (j < name.length) {
+                filesList[j] = name[j];
+            } else if (j < 100) {
+                filesList[j] = 0x00;
+            } else if (j < 106) {
+                filesList[100] = (byte) (year - 2000);
+                filesList[101] = (byte) month;
+                filesList[102] = (byte) day;
+                filesList[103] = (byte) hour;
+                filesList[104] = (byte) minute;
+                filesList[105] = (byte) second;
+            } else if (j < 108) {
+                filesList[106] = lengthList[0];
+                filesList[107] = lengthList[1];
+            }
+        }
+        return filesList;
+    }
+
+    /**
+     * 获取文件列表信息
+     */
+    public void getFileNameList() {
+        File file = new File(filePath);
+        if (!file.exists())
+            file.mkdir();
+        File[] files = new File(filePath).listFiles();
+        File x = new File(filePath);
+        for (File f : files) {
+            if (x.isDirectory()) {
+                fileNames.add(f.getName());
+                fileLengths.add((int) f.length());
+                @SuppressLint("SimpleDateFormat") String ctime = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(new Date(f.lastModified()));
+                fileTimes.add(String.valueOf(ctime));
+            }
+        }
+        //将生成的文件列表按创建时间顺序，由new到old重新排列
+        for (int i = 0; i < fileTimes.size(); i++) {
+            for (int j = i + 1; j < fileTimes.size(); j++) {
+                int va = fileTimes.get(i).compareTo(fileTimes.get(j));
+                String oldFileName = fileNames.get(i);
+                Integer oldFileLengt = fileLengths.get(i);
+                String oldFileTime = fileTimes.get(i);
+                if (va < 0) {
+                    fileNames.set(i, fileNames.get(j));
+                    fileLengths.set(i, fileLengths.get(j));
+                    fileTimes.set(i, fileTimes.get(j));
+                    fileNames.set(j, oldFileName);
+                    fileLengths.set(j, oldFileLengt);
+                    fileTimes.set(j, oldFileTime);
+                }
+            }
+        }
+    }
+
+    /**
+     *通过文件名获取文件信息
+     *
+     */
+    public void getFileNameList(String fileName) {
+        File file = new File(filePath);
+        if (!file.exists())
+            file.mkdir();
+        File[] files = new File(filePath).listFiles();
+        File x = new File(filePath);
+        for (File f : files) {
+
+            if (x.isDirectory()) {
+                if (f.getName()==fileName){
+                    fileLength=(int) f.length();
+                    @SuppressLint("SimpleDateFormat") String ctime = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(new Date(f.lastModified()));
+                    fileTime=String.valueOf(ctime);
+                }
+            }
+        }
+    }
+    /**
+     * 上传文件
+     */
+    private void uploadingFiles() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        for (int i=0;i<108;i++){
+            baos.write(mReceiveData[i+10]);
+        }
+       String fileName=baos.toString();
+        getFileNameList(fileName);
+        baos=timeWrite(baos,fileTime,fileLength);
+
+    }
+
+    /**
+     *  @param baos
+     * @param time
+     */
+    private ByteArrayOutputStream timeWrite(ByteArrayOutputStream baos , String time,Integer Length){
+        Date date=null;
+        try {
+            date = format.parse(String.valueOf(time));
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        calendar.setTime(date);
+        baos.write(calendar.get(Calendar.YEAR) - 2000);
+        baos.write(calendar.get(Calendar.MONTH) + 1);
+        baos.write(calendar.get(Calendar.DAY_OF_MONTH));
+        baos.write(calendar.get(Calendar.HOUR));
+        baos.write(calendar.get(Calendar.MINUTE));
+        baos.write(calendar.get(Calendar.SECOND));
+        baos.write(Length);
+        return baos;
+    }
+
 }

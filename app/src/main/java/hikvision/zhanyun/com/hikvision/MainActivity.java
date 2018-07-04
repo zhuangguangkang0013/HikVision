@@ -26,11 +26,12 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private SPGProtocol spgProtocol;
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private String password = "admin12345";
-    private String http = "171.221.207.59";
+    //    private String http = "171.221.207.59";
+    private String http = "10.18.67.152";
     private int httpPort = 17116;
     //    private String http = "10.18.67.225";
 //    private int httpPort = 8989;
-    private String cardNumber = "ZJ0001";
+    private String cardNumber = "ZJ0003";
     public Handler mHanlder = new Handler();
     //心跳包间隔
     private int TheHeartbeatPacketsTime = 60;//秒钟
@@ -56,7 +57,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private Timer timer;
     private String filePath = Environment.getExternalStorageDirectory()
             .getAbsolutePath() + File.separator + "HikVisionPicture/";
-
 
 
     @Override
@@ -106,7 +106,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         mHanlder.postDelayed(boot, 0);
 //        spgProtocol.uploadFile(filePath+"picture.jpg");
     }
-
 
 
     public static void verifyStoragePermissions(Activity activity) {
@@ -159,12 +158,12 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_07H:
                 break;
             case SPGProtocol.ORDER_08H:
-                boolean trReturn;
-                trReturn = hikVisionUtils.terminalReduction(3, PTZCommand.GOTO_PRESET, 1);
-                if (!trReturn) {
-                    int LastError = hikVisionUtils.GetLastError();
-                    Log.d("LastError:", String.valueOf(LastError));
-                }
+//                boolean trReturn;
+//                trReturn = hikVisionUtils.terminalReduction(1, PTZCommand.GOTO_PRESET, 1);
+//                if (!trReturn) {
+//                    int LastError = hikVisionUtils.GetLastError();
+//                    Log.d("LastError:", String.valueOf(LastError));
+//                }
                 break;
             case SPGProtocol.ORDER_09H:
                 break;
@@ -232,18 +231,18 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     public void receiveSuccess(byte order) {
         switch (order) {
             case SPGProtocol.ORDER_00H:
-                //成功后停止定时循环发送开机请求
-//                mHanlder.removeCallbacks(boot);
-//                Log.i(TAG, "服务器返回了信息停止向服务器发送开机请求");
-//                //开启校时功能
-//                mHanlder.postDelayed(WhenTheSchool, 5000);
+//                成功后停止定时循环发送开机请求
+                mHanlder.removeCallbacks(boot);
+                Log.i(TAG, "服务器返回了信息停止向服务器发送开机请求");
+                //开启校时功能
+                mHanlder.postDelayed(WhenTheSchool, 5000);
                 spgProtocol.schoolTime();
                 break;
             case SPGProtocol.ORDER_01H:
-//                //校时成功后停止校时功能
-//                mHanlder.removeCallbacks(WhenTheSchool);
-//                //开启心跳包
-//                mHanlder.postDelayed(TheHeartbeatPackets, 1000);
+                //校时成功后停止校时功能
+                mHanlder.removeCallbacks(WhenTheSchool);
+                //开启心跳包
+                mHanlder.postDelayed(TheHeartbeatPackets, 1000);
                 break;
             case SPGProtocol.ORDER_02H:
                 if (spgProtocol.oldPassword.equals(password)) {
@@ -340,7 +339,12 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                         , portNumber, new byte[]{Byte.parseByte(cardNumber)});
                 break;
             case SPGProtocol.ORDER_08H:
-//                spgProtocol.PowerOn();
+                boolean trReturn;
+                trReturn = hikVisionUtils.terminalReduction(1, PTZCommand.GOTO_PRESET, 1);
+                if (!trReturn) {
+                    int LastError = hikVisionUtils.GetLastError();
+                    Log.d("LastError:", String.valueOf(LastError));
+                }
                 break;
             case SPGProtocol.ORDER_09H:
                 break;
@@ -357,6 +361,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_30H:
                 break;
             case SPGProtocol.ORDER_71H:
+                spgProtocol.setFileNameList();
                 break;
             case SPGProtocol.ORDER_72H:
                 break;
@@ -382,8 +387,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                     Log.e(TAG, "receiveSuccess: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
                     return;
                 }
-
-
+                String fileName="picture.jpg";
+                spgProtocol.uploadFile(filePath+fileName);
                 break;
             case SPGProtocol.ORDER_84H:
                 break;
@@ -482,12 +487,12 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ERR_ORDER_07H:
                 break;
             case SPGProtocol.ERR_ORDER_08H:
-                boolean trReturn;
-                trReturn = hikVisionUtils.terminalReduction(3, PTZCommand.GOTO_PRESET, 1);
-                if (!trReturn) {
-                    int LastError = hikVisionUtils.GetLastError();
-                    Log.d("LastError:", String.valueOf(LastError));
-                }
+//                boolean trReturn;
+//                trReturn = hikVisionUtils.terminalReduction(3, PTZCommand.GOTO_PRESET, 1);
+//                if (!trReturn) {
+//                    int LastError = hikVisionUtils.GetLastError();
+//                    Log.d("LastError:", String.valueOf(LastError));
+//                }
                 break;
             case SPGProtocol.ERR_ORDER_09H:
                 break;
