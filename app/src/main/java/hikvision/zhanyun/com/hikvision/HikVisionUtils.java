@@ -4,7 +4,6 @@ package hikvision.zhanyun.com.hikvision;
 import android.os.Environment;
 import android.os.SystemClock;
 import android.util.Log;
-import android.view.Surface;
 
 import com.hikvision.netsdk.ExceptionCallBack;
 import com.hikvision.netsdk.HCNetSDK;
@@ -12,7 +11,6 @@ import com.hikvision.netsdk.INTER_PREVIEWINFO;
 import com.hikvision.netsdk.NET_DVR_DEVICEINFO_V30;
 import com.hikvision.netsdk.NET_DVR_JPEGPARA;
 import com.hikvision.netsdk.NET_DVR_TIME;
-import com.hikvision.netsdk.RealPlayCallBack;
 
 import java.io.File;
 
@@ -196,7 +194,7 @@ public class HikVisionUtils {
             Log.e(TAG, "onPTZControl: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
             return;
         }
-        SystemClock.sleep(200);
+
         HCNetSDK.getInstance().NET_DVR_PTZControl_Other(mLoginId, 1, orientation, 1);
     }
 

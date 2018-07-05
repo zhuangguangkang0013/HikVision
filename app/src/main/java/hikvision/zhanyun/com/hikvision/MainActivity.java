@@ -37,8 +37,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private String password = "admin12345";
     private String cardNumber = "ZJ0001";
-    //    private String http = "171.221.207.59";
-    private String http = "10.18.67.225";
+        private String http = "171.221.207.59";
+//    private String http = "10.18.67.225";
     private int httpPort = 17116;
     //    private String http = "10.18.67.225";
 //    private int httpPort = 8989;
@@ -88,8 +88,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        surfaceView=findViewById(R.id.surFaceView);
-
+        surfaceView = findViewById(R.id.surFaceView);
+        verifyStoragePermissions(this);
         hikVisionUtils = HikVisionUtils.getInstance();
         Boolean isSuccess = hikVisionUtils.initSDK();
         if (!isSuccess) {
@@ -128,9 +128,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 //        }
 
 
-        //初始化终端密码
-        sharedPreferences = getSharedPreferences("password", MODE_PRIVATE);
-        String password = sharedPreferences.getString("password", null);
+
         if (password != null) {
 //            spgProtocol.terminalPassword = password;
         }

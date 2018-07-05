@@ -1,17 +1,10 @@
 package hikvision.zhanyun.com.hikvision;
 
-import android.content.Context;
-import android.os.Handler;
-
-import android.content.Context;
-
-import java.net.DatagramSocket;
-
 import android.annotation.SuppressLint;
-import android.os.Environment;
-import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Environment;
+import android.os.Handler;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -231,7 +224,7 @@ public class SPGProtocol {
 
     private boolean isUpLocal = false;//保证单一上传图片
     private final int UPLOAD_IMAGE_PACK_DIVISOR = 256;
-    private final int MAX_UPLOAD_IMAGE_SIZE = 400;
+    private final int MAX_UPLOAD_IMAGE_SIZE = 950;
     private byte[] originalCommandData;
     private byte channelNum = 0;//通道号
     private byte preset = 0;//预置点
@@ -252,13 +245,14 @@ public class SPGProtocol {
     private Timer timer;
     private final static long ONE_MINUTE = 60 * 1000;
     private final static long TWO_MINUTE = 2 * 1000;
-    private String terminalPassword = "1234";
+    private String terminalPassword;
     private int[] timeArray;
     private Handler handler = new Handler();
     private int countLoop;
     private int[] presetGroup;
     private ByteArrayOutputStream scheduleBos;
     private Context context;
+    private SharedPreferences sharedPreferences;
 
 
     public void setOrder(byte order) {
@@ -369,6 +363,8 @@ public class SPGProtocol {
         Server = host;
         Port = port;
         this.deviceID = id;
+        sharedPreferences = context.getSharedPreferences("password", MODE_PRIVATE);
+        terminalPassword = sharedPreferences.getString("password", "1234");
         addr = new InetSocketAddress(Server, Port);
         try {
             socket = new DatagramSocket();
@@ -397,22 +393,6 @@ public class SPGProtocol {
         originalCommandData = null;
         dataDomain = new byte[]{};
         setOrder(ORDER_01H);
-        sendPack();
-    }
-
-    /**
-     * 设置终端密码
-     *
-     * @param judge true 修改密码，false密码错误
-     */
-    public void setTerminalPassword(boolean judge) {
-        if (judge) {
-            originalCommandData = mReceiveDatas;
-        } else {
-            originalCommandData = null;
-            dataDomain = TERMINAL_PWD_VERSION;
-        }
-        setOrder(ORDER_02H);
         sendPack();
     }
 
@@ -820,24 +800,22 @@ public class SPGProtocol {
      * 设置终端密码
      */
     protected void setTerminalPassword(byte[] mReceiveData) {
-        oldPassword = new byte[]{mReceiveData[10], mReceiveData[11], mReceiveData[12], mReceiveData[13]};
-        String pass = new String(oldPassword);
+        String pass = getReceivePassword(mReceiveData);
         if (pass.equals(terminalPassword)) {
+
             newPassword = new byte[]{mReceiveData[14], mReceiveData[15], mReceiveData[16], mReceiveData[17]};
             terminalPassword = new String(newPassword);
-            SharedPreferences sharedPreferences = context.getSharedPreferences("password", MODE_PRIVATE);
+
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putString("password", terminalPassword);
             editor.apply();
+            originalCommandData = mReceiveData;
         } else {
-            setOrder(ORDER_02H);
+            originalCommandData = null;
             dataDomain = TERMINAL_PWD_VERSION;
-            sendPack();
         }
-
-
-        mReceiveDatas = mReceiveData;
-        listenerCallBack.receiveSuccess(order);
+        setOrder(ORDER_02H);
+        sendPack();
     }
 
     /**
@@ -955,6 +933,7 @@ public class SPGProtocol {
         }
         scheduleBos = new ByteArrayOutputStream();
         if (password.equals(terminalPassword)) {
+            originalCommandData=receiveData;
             handler.removeCallbacks(runnable);
             channelNum = receiveData[14];
             timeArray = new int[receiveData[15]];
@@ -994,8 +973,12 @@ public class SPGProtocol {
                 countLoop = 0;
                 handler.postDelayed(runnable, 24 * 3600000 - (getDelayTime() - timeArray[countLoop]));
             }
+        }else{
+            originalCommandData=null;
+            dataDomain=Password_Mistake_VERSION;
         }
-
+        setOrder(ORDER_82H);
+        sendPack();
     }
 
 
@@ -1057,7 +1040,6 @@ public class SPGProtocol {
 
     /**
      * 主站请求拍摄短视频
-     *
      * @param mReceiveData
      */
     protected void theMainRequestFilmingShortVideo(byte[] mReceiveData) {
@@ -1136,7 +1118,7 @@ public class SPGProtocol {
     protected void handlerTonicPack(byte[] tonicPackData, byte order1, byte oder2) {
         try {
             if (tonicPackData != null) {
-                int pack_count = tonicPackData[12];
+                int pack_count = (tonicPackData[12] < 0) ? (tonicPackData[12] & 0xFF) : tonicPackData[12];
                 Log.e("需要补的包", "handlerTonicPack: " + pack_count);
                 if (pack_count > 0) {
                     isUpLocal = true;
@@ -1144,20 +1126,18 @@ public class SPGProtocol {
                     int len = 0;
                     byte[] buf = new byte[MAX_UPLOAD_IMAGE_SIZE];
 
-                    FileInputStream fis = new FileInputStream(pictureFile);
-                    int readCount = 0;
                     while (count-- > 0) {
                         byte bytePackLow = tonicPackData[14 + len * 2];
                         int pack_high = tonicPackData[13 + len * 2];
                         int pack_low = (bytePackLow < 0) ? (bytePackLow & 0xFF) : bytePackLow;
-
                         int packIndex = pack_high * UPLOAD_IMAGE_PACK_DIVISOR + pack_low;
 
                         if (packIndex > 0) {
                             int read;
+                            FileInputStream fis = new FileInputStream(pictureFile);
+                            int readCount = 0;
                             while ((read = fis.read(buf)) != -1) {
                                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                                SystemClock.sleep(100);
                                 readCount++;
                                 if (packIndex == readCount) {
                                     baos.write(channelNum);
@@ -1166,10 +1146,12 @@ public class SPGProtocol {
                                     baos.write((byte) pack_low);
                                     baos.write(buf, 0, read);
                                     dataDomain = baos.toByteArray();
+                                    SystemClock.sleep(100);
                                     setOrder(order1);
                                     sendPack();
                                     Log.e("补包packIndex", "tonicPack: " + packIndex + "," + buf.length);
                                     baos.close();
+                                    fis.close();
                                     break;
                                 }
                             }
@@ -1177,7 +1159,7 @@ public class SPGProtocol {
                         len++;
                     }
 
-                    fis.close();
+
                     stopUploadPicture(oder2);
                 }
             }
@@ -1213,11 +1195,11 @@ public class SPGProtocol {
             if (channelNum == mReceiveData[10]) {
                 dataDomain = scheduleBos.toByteArray();
             } else {
-                dataDomain = new byte[]{};
+                dataDomain = new byte[]{0, 0};
             }
             setOrder(ORDER_8BH);
             sendPack();
-            scheduleBos.close();
+            if (scheduleBos != null) scheduleBos.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -1277,7 +1259,6 @@ public class SPGProtocol {
                     brightnessTwo, contrastTwo, saturationTwo);
         }
     }
-
 
 
     /**
