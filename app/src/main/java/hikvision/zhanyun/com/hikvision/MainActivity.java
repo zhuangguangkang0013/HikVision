@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -23,7 +24,9 @@ import com.hikvision.netsdk.RealPlayCallBack;
 
 import org.MediaPlayer.PlayM4.Player;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Timer;
@@ -36,16 +39,16 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private SPGProtocol spgProtocol;
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private String password = "admin12345";
-    private String cardNumber = "ZJ0001";
+    private String cardNumber = "ZJ0002";
     //    private String http = "171.221.207.59";
-    private String http = "10.18.67.225";
-    private int httpPort = 17116;
+//    private String http = "10.18.67.225";
+//    private int httpPort = 17116;
     //    private String http = "10.18.67.225";
 //    private int httpPort = 8989;
 //    private int httpPort = 17116;
 //        private String http = "10.18.67.225";
-//    private String http = "192.168.144.100";
-//    private int httpPort = 9090;
+    private String http = "192.168.144.100";
+    private short httpPort = 9090;
     //    private int httpPort = 9898;
     int acb;
     //主站卡号
@@ -134,7 +137,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         if (password != null) {
 //            spgProtocol.terminalPassword = password;
         }
-        initView();
+//        initView();
     }
 
     public static void verifyStoragePermissions(Activity activity) {
@@ -270,12 +273,12 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_01H:
                 byte[] time1 = hikVisionUtils.getNetDvrTimeByte();
                 spgProtocol.terminalHeartBeatInfo(time1, (byte) 0x64, (byte) 0x044);
-
+//
 //                //校时成功后停止校时功能
 //                mHanlder.removeCallbacks(WhenTheSchool);
 //                //开启心跳包
 //                mHanlder.postDelayed(TheHeartbeatPackets, 1000)//校时成功后停止校时功能
-                mHanlder.removeCallbacks(WhenTheSchool);
+//                mHanlder.removeCallbacks(WhenTheSchool);
                 //开启心跳包
                 mHanlder.postDelayed(TheHeartbeatPackets, 1000);
                 mHanlder.postDelayed(TheHeartbeatPackets, 5 * 1000);
@@ -333,7 +336,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                             c = b;
                             d = a;
                         }
-                        httpPort = c * 256 + d;
+//                        httpPort = c * 256 + d;
                         //更改卡号 暂不知道服务器发送的卡号是纯数字还是 F?H 格式   需格式判断或询问清格式
                         int ChangeTheNumber_a = spgProtocol.mReceiveDatas[26];
                         int ChangeTheNumber_b = spgProtocol.mReceiveDatas[27];
@@ -422,39 +425,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_88H:
                 break;
             case SPGProtocol.ORDER_89H:
-
-//                RealPlayCallBack realPlayCallBack = new RealPlayCallBack() {
-//                    @Override
-//                    public void fRealDataCallBack(int i, int i1, byte[] bytes, int i2) {
-//                        SystemClock.sleep(2000);
-//                        spgProtocol.setOrder(SPGProtocol.ORDER_89H);
-//                        byte[] buf = new byte[400];
-//                        SystemClock.sleep(100);
-//                        ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
-//                        try {
-//                            while (inputStream.read(buf) != -1) {
-//                                SystemClock.sleep(1000);
-//                                spgProtocol.dataDomain = buf;
-//                                spgProtocol.PowerOn();
-//                            }
-//                        } catch (IOException e) {
-//                            e.printStackTrace();
-//                        }
-//                    }
-//                };
-//                INTER_PREVIEWINFO previewinfo = new INTER_PREVIEWINFO();
-//                previewinfo.lChannel = 1;
-//                previewinfo.dwStreamType = 0;
-//                previewinfo.dwLinkMode = 4;
-//                previewinfo.bBlocked = 1;
-//                previewinfo.bPassbackRecord = 0;
-//                previewinfo.byPreviewMode = (byte) 0;
-//                previewinfo.byProtoType = (byte) 1;
-//
-//                acb = HCNetSDK.getInstance().NET_DVR_RealPlay_V40(m_iLogId, previewinfo, realPlayCallBack, null);
-//                HCNetSDK.getInstance().NET_DVR_SaveRealData(acPb, filePath + fileName);
-//                Log.i(TAG, "onCreate: " + acb);
-
                 RealPlayCallBack fRealDataCallBack = getRealPlayerCbf();
                 if (fRealDataCallBack == null) {
 
@@ -711,115 +681,111 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         RealPlayCallBack cbf = new RealPlayCallBack() {
             public void fRealDataCallBack(int iRealHandle, int iDataType, byte[] pDataBuffer, int iDataSize) {
                 // 播放通道1
-//                Player.getInstance().setStreamOpenMode(m_iPort, 0);
-//                m_iPort = Player.getInstance().getPort();
-//                Player.getInstance().openStream(-1, pDataBuffer, iDataSize, 2 * 1024 * 1024);
-//           boolean a =   Player.getInstance().play(-1, surfaceView.getHolder());
-//                Log.i(TAG, "fRealDataCallBack: "+a);
-                processRealData(1, iDataType, pDataBuffer, iDataSize, Player.STREAM_REALTIME);
-//                spgProtocol.setOrder(SPGProtocol.ORDER_89H);
-//                byte[] buf = new byte[400];
-//                ByteArrayInputStream inputStream = new ByteArrayInputStream(pDataBuffer);
-//                try {
-//                    inputStream.read(buf);
-//                } catch (IOException e1) {
-//                    e1.printStackTrace();
-//                }
-//                SystemClock.sleep(1000);
-//                spgProtocol.dataDomain = buf;
-//                spgProtocol.PowerOn();
+//                processRealData(1, iDataType, pDataBuffer, iDataSize, Player.STREAM_REALTIME);
+                Player.getInstance().openStream(-1, pDataBuffer, iDataSize, 2 * 1024 * 1024);
+                spgProtocol.setOrder(SPGProtocol.ORDER_89H);
+                byte[] buf = new byte[400];
+                ByteArrayInputStream inputStream = new ByteArrayInputStream(pDataBuffer);
+                try {
+                    inputStream.read(buf);
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+                SystemClock.sleep(1000);
+                spgProtocol.dataDomain = buf;
+                spgProtocol.sendPack();
             }
         };
         return cbf;
     }
 
 
-    private void initView() {
-        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
-            @Override
-            public void surfaceCreated(SurfaceHolder holder) {
-                surfaceView.getHolder().setFormat(PixelFormat.TRANSLUCENT);
-                Log.i(TAG, "surface is created" + m_iPort);
-                if (-1 == m_iPort) {
-                    return;
-                }
-                Surface surface = holder.getSurface();
-                if (true == surface.isValid()) {
-                    if (false == Player.getInstance().setVideoWindow(m_iPort, 0, holder)) {
-                        Log.e(TAG, "播放器设置或销毁显示区域失败!");
-                    }
-                }
-            }
+//    private void initView() {
+//        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+//            @Override
+//            public void surfaceCreated(SurfaceHolder holder) {
+//                surfaceView.getHolder().setFormat(PixelFormat.TRANSLUCENT);
+//                Log.i(TAG, "surface is created" + m_iPort);
+//                if (-1 == m_iPort) {
+//                    return;
+//                }
+//                Surface surface = holder.getSurface();
+//                if (true == surface.isValid()) {
+//                    if (false == Player.getInstance().setVideoWindow(m_iPort, 0, holder)) {
+//                        Log.e(TAG, "播放器设置或销毁显示区域失败!");
+//                    }
+//                }
+//            }
 
-            @Override
-            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-            }
-
-            @Override
-            public void surfaceDestroyed(SurfaceHolder holder) {
-                Log.i(TAG, "Player setVideoWindow release!" + m_iPort);
-                if (-1 == m_iPort) {
-                    return;
-                }
-                if (true == holder.getSurface().isValid()) {
-                    if (false == Player.getInstance().setVideoWindow(m_iPort, 0, null)) {
-                        Log.e(TAG, "播放器设置或销毁显示区域失败!");
-                    }
-                }
-            }
-        });
-    }
-
-    public void processRealData(int iPlayViewNo, int iDataType, byte[] pDataBuffer, int iDataSize, int iStreamMode) {
-        if (HCNetSDK.NET_DVR_SYSHEAD == iDataType) {
-            if (m_iPort >= 0) {
-                return;
-            }
-            m_iPort = Player.getInstance().getPort();
-            if (m_iPort == -1) {
-                Log.e(TAG, "获取端口失败！: " + Player.getInstance().getLastError(m_iPort));
-                return;
-            }
-            Log.i(TAG, "获取端口成功！: " + m_iPort);
-            if (iDataSize > 0) {
-                if (!Player.getInstance().setStreamOpenMode(m_iPort, iStreamMode))  //set stream mode
-                {
-                    Log.e(TAG, "设置流播放模式失败！");
-                    return;
-                }
-                if (!Player.getInstance().openStream(m_iPort, pDataBuffer, iDataSize, 2 * 1024 * 1024)) //open stream
-                {
-                    Log.e(TAG, "打开流失败！");
-                    return;
-                }
-                if (!Player.getInstance().play(m_iPort, surfaceView.getHolder())) {
-                    Log.e(TAG, "播放失败！");
-                    return;
-                }
-                if (!Player.getInstance().playSound(m_iPort)) {
-                    Log.e(TAG, "以独占方式播放音频失败！失败码 :" + Player.getInstance().getLastError(m_iPort));
-                    return;
-                }
-            }
-        } else {
-            if (!Player.getInstance().inputData(m_iPort, pDataBuffer, iDataSize)) {
-//		    		Log.e(TAG, "inputData failed with: " + Player.getInstance().getLastError(m_iPort));
-                for (int i = 0; i < 4000 && -1 >= 0; i++) {
-                    if (!Player.getInstance().inputData(m_iPort, pDataBuffer, iDataSize))
-                        Log.e(TAG, "输入流数据失败: " + Player.getInstance().getLastError(m_iPort));
-                    else
-                        break;
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-
-                    }
-                }
-            }
-
-        }
-
-    }
+//            @Override
+//            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+//            }
+//
+//            @Override
+//            public void surfaceDestroyed(SurfaceHolder holder) {
+//                Log.i(TAG, "Player setVideoWindow release!" + m_iPort);
+//                if (-1 == m_iPort) {
+//                    return;
+//                }
+//                if (true == holder.getSurface().isValid()) {
+//                    if (false == Player.getInstance().setVideoWindow(m_iPort, 0, null)) {
+//                        Log.e(TAG, "播放器设置或销毁显示区域失败!");
+//                    }
+//                }
+//            }
+//        });
+//    }
+//
+//    public void processRealData(int iPlayViewNo, int iDataType, byte[] pDataBuffer, int iDataSize, int iStreamMode) {
+//        if (HCNetSDK.NET_DVR_SYSHEAD == iDataType) {
+//            if (m_iPort >= 0) {
+//                return;
+//            }
+//            m_iPort = Player.getInstance().getPort();
+//            if (m_iPort == -1) {
+//                Log.e(TAG, "获取端口失败！: " + Player.getInstance().getLastError(m_iPort));
+//                return;
+//            }
+//            Log.i(TAG, "获取端口成功！: " + m_iPort);
+//            if (iDataSize > 0) {
+//                if (!Player.getInstance().setStreamOpenMode(m_iPort, iStreamMode))  //set stream mode
+//                {
+//                    Log.e(TAG, "设置流播放模式失败！");
+//                    return;
+//                }
+//                if (!Player.getInstance().openStream(m_iPort, pDataBuffer, iDataSize, 2 * 1024 * 1024)) //open stream
+//                {
+//                    Log.e(TAG, "打开流失败！");
+//                    return;
+//                }
+//                if (!Player.getInstance().play(m_iPort, surfaceView.getHolder())) {
+//                    Log.e(TAG, "播放失败！");
+//                    return;
+//                }
+//                if (!Player.getInstance().playSound(m_iPort)) {
+//                    Log.e(TAG, "以独占方式播放音频失败！失败码 :" + Player.getInstance().getLastError(m_iPort));
+//                    return;
+//                }
+//            }
+//        } else {
+//            if (!Player.getInstance().inputData(m_iPort, pDataBuffer, iDataSize)) {
+////		    		Log.e(TAG, "inputData failed with: " + Player.getInstance().getLastError(m_iPort));
+//                for (int i = 0; i < 4000 && -1 >= 0; i++) {
+//                    if (!Player.getInstance().inputData(m_iPort, pDataBuffer, iDataSize))
+//                        Log.e(TAG, "输入流数据失败: " + Player.getInstance().getLastError(m_iPort));
+//                    else
+//                        break;
+//                    try {
+//                        Thread.sleep(10);
+//                    } catch (InterruptedException e) {
+//                        // TODO Auto-generated catch block
+//                        e.printStackTrace();
+//
+//                    }
+//                }
+//            }
+//
+//        }
+//
+//    }
 }
