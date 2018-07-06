@@ -797,9 +797,6 @@ public class SPGProtocol {
 
             if (!Arrays.equals(CipherCertification,  password) || !Arrays.equals( Http,  Https) || !Arrays.equals( port,  ports) || !Arrays.equals( cardNumber,  cardNumbers)) {
                 dataDomain = mReceiveData;
-
-                setOrder(ORDER_06H);
-                sendPack();
                 //TODO 更改端口IP
                 //更改IP
                 Server = String.valueOf( mReceiveDatas[14] + "." +  mReceiveData[15] + "." +  mReceiveData[16] + "." +  mReceiveData[17]);
