@@ -14,17 +14,23 @@ import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.Window;
+import android.view.WindowManager;
 
 import com.hikvision.netsdk.HCNetSDK;
 import com.hikvision.netsdk.NET_DVR_PREVIEWINFO;
 import com.hikvision.netsdk.PTZCommand;
+import com.hikvision.netsdk.PTZCruiseCmd;
 import com.hikvision.netsdk.PTZPresetCmd;
 import com.hikvision.netsdk.RealPlayCallBack;
 
 import org.MediaPlayer.PlayM4.Player;
 
+import java.io.DataOutputStream;
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.Timer;
 
@@ -37,11 +43,11 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private String password = "admin12345";
     private String cardNumber = "ZJ0001";
-        private String http = "171.221.207.59";
-//    private String http = "10.18.67.225";
+    //    private String http = "171.221.207.59";
+//        private String http = "10.18.67.225";
+    private String http = "10.18.67.225";
     private int httpPort = 17116;
-    //    private String http = "10.18.67.225";
-//    private int httpPort = 8989;
+    //    private int httpPort = 8989;
 //    private int httpPort = 17116;
 //        private String http = "10.18.67.225";
 //    private String http = "192.168.144.100";
@@ -74,8 +80,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private int packIndex;
     private int count = -1;
     private Timer timer;
-    //视频文件名字
-    private String fileNames = "test.mp4";
     private String filePath = Environment.getExternalStorageDirectory()
             .getAbsolutePath() + File.separator + "HikVisionPicture/";
 
@@ -89,7 +93,16 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         surfaceView = findViewById(R.id.surFaceView);
+        keepScreenLongLight(this);
         verifyStoragePermissions(this);
+
+        sharedPreferences = getSharedPreferences("Root", MODE_PRIVATE);
+        boolean isRoot = sharedPreferences.getBoolean("isRoot", false);
+        if (!isRoot){
+            String apkRoot = "chmod 777 " + getPackageCodePath();
+            RootCommand(apkRoot);
+        }
+
         hikVisionUtils = HikVisionUtils.getInstance();
         Boolean isSuccess = hikVisionUtils.initSDK();
         if (!isSuccess) {
@@ -100,6 +113,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         int port = 8000;
         String user = "admin";
         m_iLogId = hikVisionUtils.loginNormalDevice(address, port, user, password);
+
         if (m_iLogId < 0) {
             Log.e(TAG, "This device login failed!");
             return;
@@ -128,14 +142,30 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 //        }
 
 
-
         if (password != null) {
 //            spgProtocol.terminalPassword = password;
         }
         initView();
+
+
     }
 
-    public static void verifyStoragePermissions(Activity activity) {
+    /**
+     * 使屏幕常亮
+     *
+     * @param activity
+     */
+    public static void keepScreenLongLight(Activity activity) {
+        Window window = activity.getWindow();
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    /**
+     * 动态加载读写权限
+     *
+     * @param activity
+     */
+    public void verifyStoragePermissions(Activity activity) {
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return;
@@ -159,6 +189,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         @Override
         public void run() {
             spgProtocol.bootContactInfo();
+            mHanlder.postDelayed(this, 3000);
 //            String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/picture.jpg";
 //            spgProtocol.uploadFile(filePath);
         }
@@ -483,6 +514,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 int dwStreamTpye = spgProtocol.mReceiveDatas[11];
                 int shootingTime = spgProtocol.mReceiveDatas[12];
                 //TODO 下发数据参数应用到配置参数，可能需要转换类型
+                String fileNames = getFileNameCriterion(1, "mp4");
                 hikVisionUtils.onCaptureVideo(4, lChannel, dwStreamTpye, 0, 0, 1, 0, filePath, fileNames, shootingTime * 1000);
                 spgProtocol.uploadFile(filePath, fileNames);
                 break;
@@ -654,26 +686,60 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 hikVisionUtils.onPTZControl(PTZCommand.PAN_LEFT);
                 break;
             case 6://向右调节1个单位
-                hikVisionUtils.onPTZControl(PTZCommand.PAN_RIGHT);
-                break;
-            case 7://焦距向远方调节1个单位
                 hikVisionUtils.onPTZControl(PTZCommand.ZOOM_IN);
                 break;
-            case 8://焦距向近处调节1个单位
+            case 7://焦距向远方调节1个单位
                 hikVisionUtils.onPTZControl(PTZCommand.ZOOM_OUT);
+                break;
+            case 8://焦距向近处调节1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.FOCUS_FAR);
                 break;
             case 9://保存当前位置为谋预置点
                 hikVisionUtils.terminalReduction(PTZPresetCmd.SET_PRESET, preposition);
                 break;
             case 10:// 关闭摄像机电源
                 break;
+            case 11://光圈放大1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.IRIS_OPEN);
+                break;
+            case 12://光圈缩小1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.IRIS_CLOSE);
+                break;
+            case 13://镜头变陪放大1倍
+                break;
+            case 14://镜头变倍缩小1倍
+                break;
+            case 15://开始巡航
+                hikVisionUtils.onPZTCruise(PTZCruiseCmd.STOP_SEQ, (byte) 1, (byte) preposition, (short) 1);
+                break;
+            case 16://停止巡航
+                hikVisionUtils.onPZTCruise(PTZCruiseCmd.STOP_SEQ, (byte) 1, (byte) preposition, (short) 1);
+                break;
+            case 17://打开辅助开关
+                break;
+            case 18://关闭辅助开关
+                break;
+            case 19://开始自动扫描
+                break;
+            case 20://停止自动扫描
+                break;
+            case 21://开始随机扫描
+                break;
+            case 22://停止随机扫描
+                break;
+            case 23://红外线灯全开
+                break;
+            case 24://红外线半开
+                break;
+            case 25://红外线关闭
+                break;
         }
     }
 
     @Override
     public void useChannelNumOne(int colorSelection, int imageSize, int brightness, int contrast, int saturation) {
-        //上传图片
-        String fileName = "picture.jpg";
+        //上传图片;
+        String fileName = getFileNameCriterion(1, "jpg");
         Boolean isSuccess = hikVisionUtils.onCaptureJPEGPicture(filePath, fileName, imageSize);
         if (!isSuccess) {
             HCNetSDK.getInstance().NET_DVR_GetLastError();
@@ -819,5 +885,64 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
         }
 
+    }
+
+    /**
+     * 应用程序运行命令获取 Root权限，设备必须已破解(获得ROOT权限)
+     *
+     * @param command 命令：String apkRoot="chmod 777 "+getPackageCodePath(); RootCommand(apkRoot);
+     * @return 应用程序是/否获取Root权限
+     */
+
+    private boolean RootCommand(String command) {
+        Process process = null;
+        DataOutputStream os = null;
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        try {
+            process = Runtime.getRuntime().exec("su");
+            os = new DataOutputStream(process.getOutputStream());
+            os.writeBytes(command + "\n");
+            os.writeBytes("exit\n");
+            os.flush();
+            process.waitFor();
+        } catch (Exception e) {
+            Log.d("*** DEBUG ***", "ROOT REE" + e.getMessage());
+            editor.putBoolean("isRoot", false);
+            return false;
+        } finally {
+            try {
+                if (os != null) {
+                    os.close();
+                }
+                process.destroy();
+            } catch (Exception e) {
+            }
+        }
+        Log.d("*** DEBUG ***", "Root SUC ");
+
+        editor.putBoolean("isRoot", true);
+        editor.apply();
+        return true;
+    }
+
+    /**
+     * 文件命名规范
+     *
+     * @param channelNum 通道号
+     * @param type       文件类型
+     * @return
+     */
+    private String getFileNameCriterion(int channelNum, String type) {
+        String different = null;
+        if (channelNum == 1) {
+            different = "A";
+        } else if (channelNum == 2) {
+            different = "B";
+        }
+        Date date = new Date(hikVisionUtils.getNetDvrTime().ToString());
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyyMMddHHmmss");
+        String time = simpleDateFormat.format(date);
+
+        return cardNumber + "_" + different + "_" + "01" + "_" + time + "." + type;
     }
 }

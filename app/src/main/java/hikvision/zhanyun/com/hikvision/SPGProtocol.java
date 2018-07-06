@@ -25,6 +25,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Timer;
+import java.util.TimerTask;
 
 import static android.content.Context.MODE_PRIVATE;
 import static android.support.constraint.Constraints.TAG;
@@ -253,6 +254,8 @@ public class SPGProtocol {
     private ByteArrayOutputStream scheduleBos;
     private Context context;
     private SharedPreferences sharedPreferences;
+    private byte[] uploadFileData;
+    private Timer upLoadFileTimer;
 
 
     public void setOrder(byte order) {
@@ -480,6 +483,7 @@ public class SPGProtocol {
      */
     public void uploadFile(String filePath, String fileName) {
         originalCommandData = null;
+        countLoop = 0;
         if (isUpLocal) return;
         isUpLocal = true;
         byte order = -1;
@@ -516,7 +520,23 @@ public class SPGProtocol {
             dataDomain = baos.toByteArray();
             baos.close();
             setOrder(order);
-            sendPack();
+            if (upLoadFileTimer != null) {
+                upLoadFileTimer.cancel();
+                upLoadFileTimer.purge();
+            }
+
+            upLoadFileTimer = new Timer();
+            upLoadFileTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    sendPack();
+                    countLoop++;
+                    if (countLoop == 5) {
+                        isUpLocal = false;
+                        cancel();
+                    }
+                }
+            }, 0, 3000);
             fis.close();
         } catch (Exception e) {
             e.printStackTrace();
@@ -599,10 +619,10 @@ public class SPGProtocol {
                     if (socket == null) continue;
                     byte[] buf = new byte[maxPacketLength];
                     DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
-                    Log.e("123", "run: " + new String(buf).trim());
                     try {
                         socket.receive(receivePacket);
                         mReceiveData = receivePacket.getData();
+                        Log.e("receive的数据", "run: " + Arrays.toString(mReceiveData));
                         if (order == ORDER_01H) {
                             dateTimes = HikVisionUtils.getInstance().getNetDvrTime().ToString();
                         }
@@ -926,6 +946,7 @@ public class SPGProtocol {
      * @param receiveData 数据
      */
     protected void setTakePhotoTimetable(final byte[] receiveData) {
+        countLoop = 0;
         String password = getReceivePassword(mReceiveData);
         if (password == null) {
             listenerCallBack.onErrMsg(ORDER_82H);
@@ -933,7 +954,7 @@ public class SPGProtocol {
         }
         scheduleBos = new ByteArrayOutputStream();
         if (password.equals(terminalPassword)) {
-            originalCommandData=receiveData;
+            originalCommandData = receiveData;
             handler.removeCallbacks(runnable);
             channelNum = receiveData[14];
             timeArray = new int[receiveData[15]];
@@ -973,9 +994,9 @@ public class SPGProtocol {
                 countLoop = 0;
                 handler.postDelayed(runnable, 24 * 3600000 - (getDelayTime() - timeArray[countLoop]));
             }
-        }else{
-            originalCommandData=null;
-            dataDomain=Password_Mistake_VERSION;
+        } else {
+            originalCommandData = null;
+            dataDomain = Password_Mistake_VERSION;
         }
         setOrder(ORDER_82H);
         sendPack();
@@ -1040,6 +1061,7 @@ public class SPGProtocol {
 
     /**
      * 主站请求拍摄短视频
+     *
      * @param mReceiveData
      */
     protected void theMainRequestFilmingShortVideo(byte[] mReceiveData) {
@@ -1060,6 +1082,7 @@ public class SPGProtocol {
      */
     protected void handlerUploadPicture(byte order1, byte order2) {
         try {
+            upLoadFileTimer.cancel();
             int len = 0;
             int packIndex = 0;
             byte[] buf = new byte[MAX_UPLOAD_IMAGE_SIZE];
