@@ -3,7 +3,6 @@ package hikvision.zhanyun.com.hikvision;
 import android.app.Activity;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -12,22 +11,25 @@ import android.os.SystemClock;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.view.Surface;
-import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.Window;
+import android.view.WindowManager;
 
 import com.hikvision.netsdk.HCNetSDK;
 import com.hikvision.netsdk.NET_DVR_PREVIEWINFO;
 import com.hikvision.netsdk.PTZCommand;
+import com.hikvision.netsdk.PTZCruiseCmd;
 import com.hikvision.netsdk.PTZPresetCmd;
 import com.hikvision.netsdk.RealPlayCallBack;
 
 import org.MediaPlayer.PlayM4.Player;
 
 import java.io.ByteArrayInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Timer;
 
@@ -39,21 +41,17 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private SPGProtocol spgProtocol;
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private String password = "admin12345";
-    private String cardNumber = "ZJ0002";
-    private byte[] simNumber ={(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
+    private String cardNumber = "ZJ0001";
     //    private String http = "171.221.207.59";
-//    private String http = "10.18.67.225";
-//    private int httpPort = 17116;
-//    private String cardNumber = "ZJ0001";
-//        private String http = "171.221.207.59";
-//    private String http = "10.18.67.225";
-//    private int httpPort = 17116;
-    //    private String http = "10.18.67.225";
-//    private int httpPort = 8989;
-//    private int httpPort = 17116;
 //        private String http = "10.18.67.225";
-    private String http = "192.168.144.100";
-    private short httpPort = 9090;
+    private String http = "10.18.67.225";
+    private int httpPort = 17116;
+    //    private int httpPort = 8989;
+    private byte[] simNumber = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
+    //    private int httpPort = 17116;
+//        private String http = "10.18.67.225";
+//    private String http = "192.168.144.100";
+//    private short httpPort = 9090;
     //    private int httpPort = 9898;
     int acb;
     //主站卡号
@@ -82,10 +80,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private int packIndex;
     private int count = -1;
     private Timer timer;
-    //视频文件名字
-    private String fileNames = "test.mp4";
     private String filePath = Environment.getExternalStorageDirectory()
-            .getAbsolutePath() + File.separator + "HikVisionPicture/";
+            .getAbsolutePath() + File.separator + "HikVisionData/";
 
     private SharedPreferences sharedPreferences;
     private SurfaceView surfaceView;
@@ -97,7 +93,16 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         surfaceView = findViewById(R.id.surFaceView);
+        keepScreenLongLight(this);
         verifyStoragePermissions(this);
+
+        sharedPreferences = getSharedPreferences("Root", MODE_PRIVATE);
+        boolean isRoot = sharedPreferences.getBoolean("isRoot", false);
+        if (!isRoot) {
+            String apkRoot = "chmod 777 " + getPackageCodePath();
+            RootCommand(apkRoot);
+        }
+
         hikVisionUtils = HikVisionUtils.getInstance();
         Boolean isSuccess = hikVisionUtils.initSDK();
         if (!isSuccess) {
@@ -108,19 +113,31 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         int port = 8000;
         String user = "admin";
         m_iLogId = hikVisionUtils.loginNormalDevice(address, port, user, password);
+
         if (m_iLogId < 0) {
-            Log.e(TAG, "This device login failed!");
             return;
-        } else {
-            Log.i(TAG, "m_iLogID=" + m_iLogId);
         }
         spgProtocol = new SPGProtocol(this, this);
-        spgProtocol.InitUdp(http, httpPort, cardNumber,simNumber);
-
+        spgProtocol.InitUdp(http, httpPort, cardNumber, simNumber);
 //        initView();
     }
 
-    public static void verifyStoragePermissions(Activity activity) {
+    /**
+     * 使屏幕常亮
+     *
+     * @param activity
+     */
+    public static void keepScreenLongLight(Activity activity) {
+        Window window = activity.getWindow();
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    /**
+     * 动态加载读写权限
+     *
+     * @param activity
+     */
+    public void verifyStoragePermissions(Activity activity) {
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return;
@@ -138,8 +155,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             e.printStackTrace();
         }
     }
-
-
 
     @Override
     public void sendSuccess(byte order) {
@@ -234,24 +249,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     public void receiveSuccess(byte order) {
         switch (order) {
             case SPGProtocol.ORDER_00H:
-//                成功后停止定时循环发送开机请求
-//                mHanlder.removeCallbacks(boot);
-                Log.i(TAG, "服务器返回了信息停止向服务器发送开机请求");
-                //开启校时功能
-//                mHanlder.postDelayed(WhenTheSchool, 5000);
-//                spgProtocol.schoolTime();
                 break;
             case SPGProtocol.ORDER_01H:
-//                byte[] time1 = hikVisionUtils.getNetDvrTimeByte();
-//                spgProtocol.terminalHeartBeatInfo(time1, (byte) 0x64, (byte) 0x044);
-//                //校时成功后停止校时功能
-//                mHanlder.removeCallbacks(WhenTheSchool);
-//                //开启心跳包
-//                mHanlder.postDelayed(TheHeartbeatPackets, 1000)//校时成功后停止校时功能
-//                mHanlder.removeCallbacks(WhenTheSchool);
-                //开启心跳包
-//                mHanlder.postDelayed(TheHeartbeatPackets, 1000);
-//                mHanlder.postDelayed(TheHeartbeatPackets, 5 * 1000);
                 break;
             case SPGProtocol.ORDER_02H:
                 break;
@@ -345,57 +344,12 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         }
     }
 
-    //定时发送心跳包
-    public Runnable TheHeartbeatPackets = new Runnable() {
-        @Override
-        public void run() {
-            byte[] time = HikVisionUtils.getInstance().getNetDvrTimeByte();
-            spgProtocol.terminalHeartBeatInfo(time, (byte) 0x64, (byte) 0x44);
-        }
-    };
-
-    //定时发送心跳包
-    public Runnable TheHeartbeatPacketss = new Runnable() {
-        @Override
-        public void run() {
-            byte[] time = HikVisionUtils.getInstance().getNetDvrTimeByte();
-            spgProtocol.terminalHeartBeatInfo(time, (byte) 0x64, (byte) 0x44);
-            mHanlder.postDelayed(TheHeartbeatPacketss, 1000);
-        }
-    };
-
-
-    //主动校时线程
-    public Runnable WhenTheSchool = new Runnable() {
-        public void run() {
-
-            mHanlder.postDelayed(this, 5000);
-        }
-    };
-
-    //终端休眠通知
-    public Runnable NotificationsDormancy = new Runnable() {
-        @Override
-        public void run() {
-            spgProtocol.terminalSleepNotification();
-        }
-    };
-
     @Override
     public void onErrMsg(int message) {
-
         switch (message) {
             case SPGProtocol.ERR_ORDER_00H:
-                if (spgProtocol.mReceiveData == null) {
-                    //若无接收到服务器返回的信息。延迟2分钟,再次执行发送-开机-请求直到接收到服务器返回值,
-//                    mHanlder.postDelayed(boot, 1000);
-                    Log.i(TAG, "服务器没有返回信息");
-                }
                 break;
             case SPGProtocol.ERR_ORDER_01H:
-                //若无接受到服务器返回的信息，延迟 分钟，再次执行-校时-请求直到接收到服务器的返回值
-
-                mHanlder.postDelayed(WhenTheSchool, 1000);
                 break;
             case SPGProtocol.ERR_ORDER_02H:
                 break;
@@ -404,21 +358,12 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ERR_ORDER_04H:
                 break;
             case SPGProtocol.ERR_ORDER_05H:
-                //若无接受到服务器返回的信息，延迟 分钟，再次执行-心跳包-请求直到接收到服务器的返回值
-                mHanlder.postDelayed(TheHeartbeatPackets, 1000);
                 break;
             case SPGProtocol.ERR_ORDER_06H:
                 break;
             case SPGProtocol.ERR_ORDER_07H:
                 break;
             case SPGProtocol.ERR_ORDER_08H:
-
-                boolean trReturn;
-                trReturn = hikVisionUtils.terminalReduction(PTZCommand.GOTO_PRESET, 1);
-                if (!trReturn) {
-                    int LastError = hikVisionUtils.GetLastError();
-                    Log.d("LastError:", String.valueOf(LastError));
-                }
                 break;
             case SPGProtocol.ERR_ORDER_09H:
                 break;
@@ -502,26 +447,60 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 hikVisionUtils.onPTZControl(PTZCommand.PAN_LEFT);
                 break;
             case 6://向右调节1个单位
-                hikVisionUtils.onPTZControl(PTZCommand.PAN_RIGHT);
-                break;
-            case 7://焦距向远方调节1个单位
                 hikVisionUtils.onPTZControl(PTZCommand.ZOOM_IN);
                 break;
-            case 8://焦距向近处调节1个单位
+            case 7://焦距向远方调节1个单位
                 hikVisionUtils.onPTZControl(PTZCommand.ZOOM_OUT);
+                break;
+            case 8://焦距向近处调节1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.FOCUS_FAR);
                 break;
             case 9://保存当前位置为谋预置点
                 hikVisionUtils.terminalReduction(PTZPresetCmd.SET_PRESET, preposition);
                 break;
             case 10:// 关闭摄像机电源
                 break;
+            case 11://光圈放大1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.IRIS_OPEN);
+                break;
+            case 12://光圈缩小1个单位
+                hikVisionUtils.onPTZControl(PTZCommand.IRIS_CLOSE);
+                break;
+            case 13://镜头变陪放大1倍
+                break;
+            case 14://镜头变倍缩小1倍
+                break;
+            case 15://开始巡航
+                hikVisionUtils.onPZTCruise(PTZCruiseCmd.STOP_SEQ, (byte) 1, (byte) preposition, (short) 1);
+                break;
+            case 16://停止巡航
+                hikVisionUtils.onPZTCruise(PTZCruiseCmd.STOP_SEQ, (byte) 1, (byte) preposition, (short) 1);
+                break;
+            case 17://打开辅助开关
+                break;
+            case 18://关闭辅助开关
+                break;
+            case 19://开始自动扫描
+                break;
+            case 20://停止自动扫描
+                break;
+            case 21://开始随机扫描
+                break;
+            case 22://停止随机扫描
+                break;
+            case 23://红外线灯全开
+                break;
+            case 24://红外线半开
+                break;
+            case 25://红外线关闭
+                break;
         }
     }
 
     @Override
     public void useChannelNumOne(int colorSelection, int imageSize, int brightness, int contrast, int saturation) {
-        //上传图片
-        String fileName = "picture.jpg";
+        //上传图片;
+        String fileName = getFileNameCriterion(1, "jpg");
         Boolean isSuccess = hikVisionUtils.onCaptureJPEGPicture(filePath, fileName, imageSize);
         if (!isSuccess) {
             HCNetSDK.getInstance().NET_DVR_GetLastError();
@@ -553,16 +532,16 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     }
 
     @Override
-    public void modifyTheHostIPPortNumbers( String http,int port, byte[] simNumber) {
+    public void modifyTheHostIPPortNumbers(String http, int port, byte[] simNumber) {
         this.http = http;
         this.httpPort = (short) port;
         this.simNumber = simNumber;
         //更改后重新初始化地址端口卡号
-        spgProtocol.InitUdp(http, port,cardNumber,simNumber);
+        spgProtocol.InitUdp(http, port, cardNumber, simNumber);
 
-        Log.i(TAG, "ModifyTheHostIPPortNumbers: "+this.http);
-        Log.i(TAG, "ModifyTheHostIPPortNumbers: "+this.httpPort);
-        Log.i(TAG, "ModifyTheHostIPPortNumbers: "+this.simNumber);
+        Log.i(TAG, "ModifyTheHostIPPortNumbers: " + this.http);
+        Log.i(TAG, "ModifyTheHostIPPortNumbers: " + this.httpPort);
+        Log.i(TAG, "ModifyTheHostIPPortNumbers: " + this.simNumber);
 
     }
 
@@ -590,17 +569,16 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     }
 
     @Override
-    public void startShortVideo() {
+    public void startShortVideo(int channel, int type, int time) {
         spgProtocol.setOrder(SPGProtocol.ORDER_93H);
         spgProtocol.sendPack();
-        int lChannel = spgProtocol.mReceiveDatas[10];
-        int dwStreamTpye = spgProtocol.mReceiveDatas[11];
-        int shootingTime = spgProtocol.mReceiveDatas[12];
+        String fileNames = getFileNameCriterion(1, "mp4");
         //TODO 下发数据参数应用到配置参数，可能需要转换类型
-        hikVisionUtils.onCaptureVideo(4, lChannel, dwStreamTpye, 0, 0, 1, 0, filePath, fileNames, shootingTime * 1000);
+        hikVisionUtils.onCaptureVideo(4, channel, type, 0,
+                0, 1, 0, filePath, fileNames,
+                time * 1000);
         spgProtocol.uploadFile(filePath, fileNames);
     }
-
 
     private RealPlayCallBack getRealPlayerCbf() {
         RealPlayCallBack cbf = new RealPlayCallBack() {
@@ -624,6 +602,65 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         return cbf;
     }
 
+
+    /**
+     * 应用程序运行命令获取 Root权限，设备必须已破解(获得ROOT权限)
+     *
+     * @param command 命令：String apkRoot="chmod 777 "+getPackageCodePath(); RootCommand(apkRoot);
+     * @return 应用程序是/否获取Root权限
+     */
+
+    private boolean RootCommand(String command) {
+        Process process = null;
+        DataOutputStream os = null;
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        try {
+            process = Runtime.getRuntime().exec("su");
+            os = new DataOutputStream(process.getOutputStream());
+            os.writeBytes(command + "\n");
+            os.writeBytes("exit\n");
+            os.flush();
+            process.waitFor();
+        } catch (Exception e) {
+            Log.d("*** DEBUG ***", "ROOT REE" + e.getMessage());
+            editor.putBoolean("isRoot", false);
+            return false;
+        } finally {
+            try {
+                if (os != null) {
+                    os.close();
+                }
+                process.destroy();
+            } catch (Exception e) {
+            }
+        }
+        Log.d("*** DEBUG ***", "Root SUC ");
+
+        editor.putBoolean("isRoot", true);
+        editor.apply();
+        return true;
+    }
+
+    /**
+     * 文件命名规范
+     *
+     * @param channelNum 通道号
+     * @param type       文件类型
+     * @return
+     */
+    private String getFileNameCriterion(int channelNum, String type) {
+        String different = null;
+        if (channelNum == 1) {
+            different = "A";
+        } else if (channelNum == 2) {
+            different = "B";
+        }
+        Date date = new Date(hikVisionUtils.getNetDvrTime().ToString());
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyyMMddHHmmss");
+        String time = simpleDateFormat.format(date);
+
+        return cardNumber + "_" + different + "_" + "01" + "_" + time + "." + type;
+    }
 
 //    private void initView() {
 //        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
@@ -713,4 +750,5 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 //        }
 //
 //    }
+
 }
