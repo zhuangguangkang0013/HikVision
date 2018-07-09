@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -102,7 +103,9 @@ public class SPGProtocol {
     private byte[] signalRecordingTime = new byte[5];
     private byte[] signalStrength = new byte[0];
     private byte[] batteryVoltage = new byte[0];
-
+    //心跳包间隔
+    private int TheHeartbeatPacketsTime = 60;//秒钟
+    private int TheHeartbeatPacketsTimes = TheHeartbeatPacketsTime * 1000;
     //终端复位 08H
     private final byte[] TERMINAL_RESET = {(byte) 0xFFF};
     private static boolean RIGHT_OR_NOT;
@@ -129,19 +132,19 @@ public class SPGProtocol {
     //记录发送时间，接收时间
     private String dateTime;
     private String dateTimes;
-
+    private byte[] simNumber;
     //主站下发参数配置
-    public String password;    //密码
+    public byte[] password;    //密码
     public int HeartbeatInterval;    //心跳间隔
     public int SamplingInterval;   //采样间隔
     public int TheSleepTime;  //休眠时长
     public int TheOnlineTime; //在线时长时间点
     public byte[] HardwareResetTime;    //硬件重启
-    public byte[] CipherCertification;    //密文认证
+    public byte[] CipherCertification = {0x31, 0x32, 0x33, 0x34};    //密文认证
 
     //更改主站IP
-    public String Http;    //主站IP
-    public String Https; //主站IP
+    public byte[] Http;    //主站IP
+    public byte[] Https; //主站IP
     public byte[] port; //端口号
     public byte[] ports;    //端口号
     public byte[] cardNumber;    //主站卡号
@@ -153,6 +156,8 @@ public class SPGProtocol {
     private final byte[] HttpOrPortCarNumber = {0x0000};
     //储存接受数据
     public byte[] mReceiveDatas;
+    //主站卡号
+
 
     //查询主站IP，端口，卡号
     //主站IP
@@ -178,7 +183,7 @@ public class SPGProtocol {
     String fileTime;
 
     //文件存储路径
-    public String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionPicture/";
+    public String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionData/";
 
     //ErrMsg 信息 标识
     public static final int ERR_SEND_UDP = 1;
@@ -254,9 +259,10 @@ public class SPGProtocol {
     private ByteArrayOutputStream scheduleBos;
     private Context context;
     private SharedPreferences sharedPreferences;
+
     private byte[] uploadFileData;
     private Timer upLoadFileTimer;
-
+    public Handler mHanlder = new Handler();
 
     public void setOrder(byte order) {
         this.order = order;
@@ -362,13 +368,15 @@ public class SPGProtocol {
      * @param host 服务器地址
      * @param port 端口
      */
-    public void InitUdp(final String host, final int port, String id) {
+    public void InitUdp(final String host, final int port, String id, byte[] simNumber) {
         Server = host;
         Port = port;
         this.deviceID = id;
+        this.simNumber = simNumber;
         sharedPreferences = context.getSharedPreferences("password", MODE_PRIVATE);
         terminalPassword = sharedPreferences.getString("password", "1234");
         addr = new InetSocketAddress(Server, Port);
+        mHanlder.postDelayed(boot, 3 * 1000);
         try {
             socket = new DatagramSocket();
             receive();
@@ -376,6 +384,14 @@ public class SPGProtocol {
             e.printStackTrace();
         }
     }
+
+    //主动开机线程
+    private Runnable boot = new Runnable() {
+        @Override
+        public void run() {
+            bootContactInfo();
+        }
+    };
 
     /**
      * 开机联络信息
@@ -455,6 +471,7 @@ public class SPGProtocol {
         originalCommandData = null;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
+
             baos.write(queryTime);
             dataDomain = baos.toByteArray();
             baos.close();
@@ -663,16 +680,15 @@ public class SPGProtocol {
             case ORDER_04H:
                 break;
             case ORDER_05H:
-                if (proofOrder()) listenerCallBack.receiveSuccess(order);
-                else listenerCallBack.onErrMsg(ERR_ORDER_05H);
+                cardiacPacingInterval();
                 break;
             case ORDER_06H:
                 //更改主站IP，端口，卡号
-                changeMasterStationInfo(mReceiveData);
+                ModifyTheHostIPPortNumbers(mReceiveData);
                 break;
             case ORDER_07H:
                 //查询主站IP,端口号，卡号
-                listenerCallBack.receiveSuccess(order);
+                selectIpAndPortAndSimNumber();
                 break;
             case ORDER_08H:
                 handlerTerminalReset(mReceiveData);
@@ -686,7 +702,9 @@ public class SPGProtocol {
             case ORDER_0CH:
                 break;
             case ORDER_0DH:
-                listenerCallBack.receiveSuccess(order);
+                String time = listenerCallBack.getDvrTime();
+                byte[] timeByte = getByteTime(time);
+                theQueryTime(timeByte);
                 break;
             case ORDER_21H:
                 break;
@@ -694,7 +712,7 @@ public class SPGProtocol {
                 break;
             case ORDER_71H:
                 filesNumber = mReceiveData[10];
-                listenerCallBack.receiveSuccess(order);
+                setFileNameList();
                 break;
             case ORDER_72H:
                 setOrder(order);
@@ -732,10 +750,10 @@ public class SPGProtocol {
                 handlerRemoteAdjustment();
                 break;
             case ORDER_89H:
-                listenerCallBack.receiveSuccess(order);
+                listenerCallBack.startVideo();
                 break;
             case ORDER_8AH:
-                listenerCallBack.receiveSuccess(order);
+                listenerCallBack.stopVideo();
                 break;
             case ORDER_8BH:
                 queryPhotoSchedule();
@@ -759,17 +777,141 @@ public class SPGProtocol {
     }
 
     /**
+     * 字符串中提取年/月/日/时/分/秒
+     *
+     * @param time 传入String类型 YYYY/MM/DD HH:MM:ss 格式时间
+     * @return 6字节byte类型参数
+     */
+    private byte[] getByteTime(String time) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+        byte[] timeByte;
+        Date date = null;
+        try {
+            date = sdf.parse(time);
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        int year = calendar.get(Calendar.YEAR) - 2000;
+        int moth = calendar.get(Calendar.MONTH);
+        int day = calendar.get(Calendar.DAY_OF_MONTH);
+        int hour = calendar.get(Calendar.HOUR_OF_DAY);
+        int minute = calendar.get(Calendar.MINUTE);
+        int second = calendar.get(Calendar.SECOND);
+        timeByte = new byte[]{(byte) year, (byte) moth, (byte) day, (byte) hour, (byte) minute, (byte) second};
+        return timeByte;
+    }
+
+    /**
+     * 修改主站端口IP卡号
+     */
+    private void ModifyTheHostIPPortNumbers(byte[] mReceiveData) {
+        Http = new byte[]{mReceiveDatas[13], mReceiveDatas[14], mReceiveDatas[15], mReceiveDatas[16]};
+        port = new byte[]{mReceiveDatas[17], mReceiveDatas[18]};
+        Https = new byte[]{mReceiveDatas[19], mReceiveDatas[20], mReceiveDatas[21], mReceiveDatas[22]};
+        ports = new byte[]{mReceiveDatas[23], mReceiveDatas[24]};
+        cardNumber = new byte[]{mReceiveDatas[25], mReceiveDatas[26], mReceiveDatas[27], mReceiveDatas[28], mReceiveDatas[29], mReceiveDatas[30]};
+        cardNumbers = new byte[]{mReceiveDatas[31], mReceiveDatas[32], mReceiveDatas[33], mReceiveDatas[34], mReceiveDatas[35], mReceiveDatas[36],};
+        password = new byte[]{mReceiveDatas[9], mReceiveDatas[10], mReceiveDatas[11], mReceiveDatas[12],};
+        if (Arrays.equals(CipherCertification, password)) {
+
+            if (!Arrays.equals(CipherCertification, password) || !Arrays.equals(Http, Https) || !Arrays.equals(port, ports) || !Arrays.equals(cardNumber, cardNumbers)) {
+                dataDomain = mReceiveData;
+                //TODO 更改端口IP
+                //更改IP
+                Server = String.valueOf(mReceiveDatas[14] + "." + mReceiveData[15] + "." + mReceiveData[16] + "." + mReceiveData[17]);
+                Log.i("更改后的IP", "receiveSuccess: " + Server);
+                //更改端口
+                short a = mReceiveDatas[18];
+                short b = mReceiveDatas[19];
+                short c = 0;
+                short d = 0;
+                if (a > b) {
+                    c = a;
+                    d = b;
+                } else {
+                    c = b;
+                    d = a;
+                }
+                Port = (short) (c * 256 + d);
+                Log.i("更改后的IP", "receiveSuccess: " + Port);
+                //更改卡号 暂不知道服务器发送的卡号是纯数字还是 F?H 格式   需格式判断或询问清格式
+                simNumber = new byte[]{mReceiveDatas[26], mReceiveDatas[27], mReceiveDatas[28], mReceiveDatas[29], mReceiveDatas[30], mReceiveDatas[31]};
+                Log.i("更改后的IP", "receiveSuccess: " + simNumber);
+                listenerCallBack.modifyTheHostIPPortNumbers(Server, Port, simNumber);
+                //TODO 需做保存处理
+            } else {
+                dataDomain = HttpOrPortCarNumber;
+            }
+        } else {
+            dataDomain = Password_Mistake_VERSION;
+        }
+        setOrder(ORDER_06H);
+        sendPack();
+    }
+
+    /**
+     * 查询IP，端口，http
+     */
+    private void selectIpAndPortAndSimNumber() {
+        //端口取高字节
+        byte mainVersion = (byte) ((Port & 0xFF00) >> 8);
+        //端口取低字节
+        byte minorVersion = (byte) (Port & 0xFF);
+        //高字节*256+低字节
+        byte[] portNumber = new byte[]{(byte) (mainVersion * 256 + minorVersion)};
+        Log.i(TAG, "receiveSuccess: " + portNumber);
+        //IP
+        int a, b, c, d;
+        //先找到IP地址字符串中.的位置
+        int position1 = Server.indexOf(".");
+        int position2 = Server.indexOf(".", position1 + 1);
+        int position3 = Server.indexOf(".", position2 + 1);
+        //将每个.之间的字符串转换成整型
+        a = Integer.parseInt(Server.substring(0, position1));
+        b = Integer.parseInt(Server.substring(position1 + 1, position2));
+        c = Integer.parseInt(Server.substring(position2 + 1, position3));
+        d = Integer.parseInt(Server.substring(position3 + 1));
+        //启动
+        queryMasterStation(new byte[]{(byte) a, (byte) b, (byte) c, (byte) d}, portNumber, simNumber);
+    }
+
+    /**
+     * 循环发送心跳包处理
+     */
+    private void cardiacPacingInterval() {
+        mHanlder.removeCallbacks(TheHeartbeatPackets);
+        //判断心跳包返回的指令  如果是原指令择每隔两分钟重复发送心跳
+        if (mReceiveData != null && mReceiveData[7] == SPGProtocol.ORDER_05H) {
+            Log.i(TAG, "run: " + mReceiveData[7]);
+            mHanlder.postDelayed(TheHeartbeatPackets, TheHeartbeatPacketsTimes);
+        } else {
+            //否则关闭心跳包,两分钟后再重新开启定时心跳线程
+            mHanlder.removeCallbacks(TheHeartbeatPackets);
+            //执行指令
+            byte[] time = HikVisionUtils.getInstance().getNetDvrTimeByte();
+            terminalHeartBeatInfo(time, (byte) 0x64, (byte) 0x44);
+            mHanlder.postDelayed(TheHeartbeatPackets, TheHeartbeatPacketsTimes);
+        }
+    }
+
+    //主动校时线程
+    public Runnable WhenTheSchool = new Runnable() {
+        public void run() {
+            schoolTime();
+        }
+    };
+
+    /**
      * 开机联络信息
      */
     protected void handlerBootContactInfo(byte[] mReceiveData) {
-        if (proofOrder()) {
-            listenerCallBack.receiveSuccess(order);
-        } else if (!proofOrder()) {
-            listenerCallBack.onErrMsg(ERR_ORDER_00H);
-        } else if (mReceiveData != null) {
+        if (mReceiveData != null) {
+            mHanlder.removeCallbacks(boot);
             originalCommandData = mReceiveData;
-            setOrder(ORDER_00H);
-            sendPack();
+
+            mHanlder.postDelayed(WhenTheSchool, 5000);
         }
     }
 
@@ -780,22 +922,21 @@ public class SPGProtocol {
      */
     protected void handlerSchoolTime(byte[] mReceiveData) {
 //        setTimer(false, TWO_MINUTE);
+        mHanlder.removeCallbacks(WhenTheSchool);
         if (dateTime != null && dateTimes != null) {
             Date date = new Date(dateTime);//发送请求的时间
             Date dates = new Date(dateTimes);//接受到返回值的时间
             int handlerOrder = getTimeDelta(date, dates);
             if (handlerOrder < 20) {
-
                 boolean setTimer = listenerCallBack.setDvrTime(mReceiveData[10] + 2000,
                         mReceiveData[11],
                         mReceiveData[12],
                         mReceiveData[13],
                         mReceiveData[14],
                         mReceiveData[15]);
-
                 if (!setTimer) {
                     listenerCallBack.onErrMsg(ERR_ORDER_01H);
-                } else if (proofOrder()) listenerCallBack.receiveSuccess(order);
+                }
             } else {
                 listenerCallBack.onErrMsg(ERR_ORDER_01H);
             }
@@ -812,9 +953,18 @@ public class SPGProtocol {
             originalCommandData = mReceiveData;
             setOrder(ORDER_01H);
             sendPack();
-//            listenerCallBack.receiveSuccess(order);
         }
+        mHanlder.postDelayed(TheHeartbeatPackets, 3 * 1000);
     }
+
+    //定时发送心跳包
+    public Runnable TheHeartbeatPackets = new Runnable() {
+        @Override
+        public void run() {
+            byte[] time = HikVisionUtils.getInstance().getNetDvrTimeByte();
+            terminalHeartBeatInfo(time, (byte) 0x64, (byte) 0x44);
+        }
+    };
 
     /**
      * 设置终端密码
@@ -843,7 +993,7 @@ public class SPGProtocol {
      */
     protected void handlerMasterStationParamConfig(byte[] mReceiveData) {
         mReceiveDatas = mReceiveData;
-        password = Arrays.toString(new byte[]{mReceiveData[10], mReceiveData[11], mReceiveData[12], mReceiveData[13]});//密码
+        password = new byte[]{mReceiveData[10], mReceiveData[11], mReceiveData[12], mReceiveData[13]};//密码
         HeartbeatInterval = mReceiveData[14];//心跳间隔
         SamplingInterval = mReceiveData[15] + mReceiveData[16];//采样间隔
         TheSleepTime = mReceiveData[17] + mReceiveData[18];//休眠间隔
@@ -854,33 +1004,6 @@ public class SPGProtocol {
         listenerCallBack.receiveSuccess(order);
     }
 
-    /**
-     * 更改主站IP地址、端口号和卡号 06H
-     */
-    protected void changeMasterStationInfo(byte[] mReceiveData) {
-        //TODO 无权限
-        originalCommandData = mReceiveData;
-        setOrder(ORDER_06H);
-        sendPack();
-        if (judges) {
-            if (judge) {
-                dataDomain = new byte[]{mReceiveData[10], mReceiveData[11],
-                        mReceiveData[12], mReceiveData[13], mReceiveData[14],
-                        mReceiveData[15], mReceiveData[16], mReceiveData[17], mReceiveData[18],
-                        mReceiveData[19], mReceiveData[20], mReceiveData[21], mReceiveData[22],
-                        mReceiveData[23], mReceiveData[24], mReceiveData[25], mReceiveData[26],
-                        mReceiveData[27], mReceiveData[28], mReceiveData[29], mReceiveData[30],
-                        mReceiveData[31], mReceiveData[32], mReceiveData[33], mReceiveData[34],
-                        mReceiveData[35], mReceiveData[36], mReceiveData[37]};
-            } else {
-                dataDomain = HttpOrPortCarNumber;
-            }
-        } else {
-            dataDomain = Password_Mistake_VERSION;
-        }
-        if (proofOrder()) listenerCallBack.receiveSuccess(order);
-        else listenerCallBack.onErrMsg(ERR_ORDER_05H);
-    }
 
     /**
      * 终端复位
@@ -1069,8 +1192,7 @@ public class SPGProtocol {
         setOrder(ORDER_93H);
         sendPack();
         Log.i(TAG, "receiveSuccess: " + mReceiveDatas[11]);
-        if (listenerCallBack != null) listenerCallBack.receiveSuccess(order);
-
+        listenerCallBack.startShortVideo(mReceiveDatas[10], mReceiveDatas[11], mReceiveDatas[12]);
     }
 
 
@@ -1287,7 +1409,7 @@ public class SPGProtocol {
     /**
      * 71H上传文件列表
      */
-    public void setFileNameList() {
+    protected void setFileNameList() {
         getFileNameList();
         int num = 0;
         if (filesNumber == 0) {
@@ -1321,7 +1443,7 @@ public class SPGProtocol {
      * @param i 第i个文件
      * @return 第i个文件信息
      */
-    public byte[] getFileList(int i) {
+    protected byte[] getFileList(int i) {
         byte[] filesList = new byte[108];
         //文件名
         byte[] name = fileNames.get(i).getBytes();
@@ -1374,10 +1496,10 @@ public class SPGProtocol {
     /**
      * 获取文件列表信息
      */
-    public void getFileNameList() {
+    protected void getFileNameList() {
         File file = new File(filePath);
         if (!file.exists())
-            file.mkdir();
+            return;
         File[] files = new File(filePath).listFiles();
         File x = new File(filePath);
         for (File f : files) {
@@ -1410,19 +1532,19 @@ public class SPGProtocol {
     /**
      * 通过文件名获取文件信息
      */
-    public void getFileNameList(String fileName) {
+    protected void getFileNameList(String fileName) {
         File file = new File(filePath);
         if (!file.exists())
-            file.mkdir();
+            return;
         File[] files = new File(filePath).listFiles();
         File x = new File(filePath);
         for (File f : files) {
 
             if (x.isDirectory()) {
-                if (f.getName() == fileName) {
+                if (f.getName().equals(fileName)) {
                     fileLength = (int) f.length();
                     @SuppressLint("SimpleDateFormat") String ctime = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(new Date(f.lastModified()));
-                    fileTime = String.valueOf(ctime);
+                    fileTime = ctime;
                 }
             }
         }
@@ -1432,36 +1554,20 @@ public class SPGProtocol {
      * 上传文件
      */
     private void uploadingFiles() {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        for (int i = 0; i < 108; i++) {
-            baos.write(mReceiveData[i + 10]);
-        }
-        String fileName = baos.toString();
-        getFileNameList(fileName);
-        baos = timeWrite(baos, fileTime, fileLength);
-
-    }
-
-    /**
-     * @param baos
-     * @param time
-     */
-    private ByteArrayOutputStream timeWrite(ByteArrayOutputStream baos, String time, Integer Length) {
-        Date date = null;
         try {
-            date = format.parse(String.valueOf(time));
-        } catch (ParseException e) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            for (int i = 0; i < 108; i++) {
+                baos.write(mReceiveData[i + 10]);
+            }
+            String fileName = baos.toString();
+            getFileNameList(fileName);
+            baos.write(getByteTime(fileTime));
+            baos.write(fileLength);
+        } catch (IOException e) {
             e.printStackTrace();
         }
-        calendar.setTime(date);
-        baos.write(calendar.get(Calendar.YEAR) - 2000);
-        baos.write(calendar.get(Calendar.MONTH) + 1);
-        baos.write(calendar.get(Calendar.DAY_OF_MONTH));
-        baos.write(calendar.get(Calendar.HOUR));
-        baos.write(calendar.get(Calendar.MINUTE));
-        baos.write(calendar.get(Calendar.SECOND));
-        baos.write(Length);
-        return baos;
+
     }
+
 
 }

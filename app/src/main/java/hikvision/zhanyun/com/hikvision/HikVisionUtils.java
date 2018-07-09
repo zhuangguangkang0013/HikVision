@@ -147,6 +147,7 @@ public class HikVisionUtils {
         return timeByte;
     }
 
+
     /**
      * 终端复位
      *
