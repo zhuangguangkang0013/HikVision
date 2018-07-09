@@ -364,6 +364,7 @@ public class SPGProtocol {
      * @param id   终端号码 123456
      * @param host 服务器地址
      * @param port 端口
+     * @param simNumber  卡号
      */
     public void InitUdp(final String host, final int port, String id,byte[] simNumber) {
         Server = host;
@@ -372,6 +373,13 @@ public class SPGProtocol {
         this.simNumber = simNumber;
         sharedPreferences = context.getSharedPreferences("password", MODE_PRIVATE);
         terminalPassword = sharedPreferences.getString("password", "1234");
+        sharedPreferences = context.getSharedPreferences("http", MODE_PRIVATE);
+        sharedPreferences = context.getSharedPreferences("port", MODE_PRIVATE);
+        sharedPreferences = context.getSharedPreferences("simNumber", MODE_PRIVATE);
+        //初始化端口
+        Server = sharedPreferences.getString("http",null);
+        Port = sharedPreferences.getInt("port",0);
+        this.simNumber = sharedPreferences.getString("simNumber",null).getBytes();
         addr = new InetSocketAddress(Server, Port);
         mHanlder.postDelayed(boot, 3*1000);
         try {
@@ -818,8 +826,15 @@ public class SPGProtocol {
                 //更改卡号 暂不知道服务器发送的卡号是纯数字还是 F?H 格式   需格式判断或询问清格式
                 simNumber = new byte[]{ mReceiveDatas[26],  mReceiveDatas[27],  mReceiveDatas[28],  mReceiveDatas[29],  mReceiveDatas[30],  mReceiveDatas[31]};
                 Log.i("更改后的IP", "receiveSuccess: "+simNumber);
-               listenerCallBack.modifyTheHostIPPortNumbers(Server,Port,simNumber);
+//               listenerCallBack.modifyTheHostIPPortNumbers(Server,Port,simNumber);
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putString("http", Server);
+                editor.putInt("port", Port);
+                editor.putString("simNumber", Arrays.toString(simNumber));
+                editor.apply();
+               InitUdp(Server,Port,deviceID,simNumber);
                //TODO 需做保存处理
+
             } else {
                 dataDomain = HttpOrPortCarNumber;
             }
