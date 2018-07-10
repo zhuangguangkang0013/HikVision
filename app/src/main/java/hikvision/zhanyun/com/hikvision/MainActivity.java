@@ -47,7 +47,10 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private String password = "admin12345";
     private String cardNumber = "ZJ0002";
+//    private String cardNumber = "ZJ0003";
     //    private String http = "171.221.207.59";
+
+//    private String http = "10.18.67.152";
 //        private String http = "10.18.67.225";
 //    private String http = "10.18.67.225";
 //    private int httpPort = 17116;
@@ -399,6 +402,7 @@ private  Button btn;
             case SPGProtocol.ERR_ORDER_71H:
                 break;
             case SPGProtocol.ERR_ORDER_72H:
+
                 break;
             case SPGProtocol.ERR_ORDER_73H:
                 break;
