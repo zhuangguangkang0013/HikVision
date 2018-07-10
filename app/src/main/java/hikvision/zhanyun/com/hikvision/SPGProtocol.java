@@ -1,10 +1,14 @@
 package hikvision.zhanyun.com.hikvision;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.os.Environment;
 import android.os.Handler;
+
+import java.net.DatagramSocket;
+
+import android.annotation.SuppressLint;
+import android.os.Environment;
+
+import android.content.SharedPreferences;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -14,7 +18,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.text.ParseException;
@@ -278,6 +281,7 @@ public class SPGProtocol {
     private Handler mHandler = new Handler();
     private String requestTime;
     private String responseTime;
+    private int repeatCountLoop;
 
     public void setOrder(byte order) {
         this.order = order;
@@ -740,17 +744,24 @@ public class SPGProtocol {
                 setFileNameList();
                 break;
             case ORDER_72H:
-                setOrder(order);
+                originalCommandData = mReceiveData;
+                setOrder(ORDER_72H);
                 sendPack();
-                uploadingFiles();
+                repeatCountLoop = 0;
+                uploadingFileRequests();
                 break;
             case ORDER_73H:
+                repeatCountLoop = 0;
+                mHandler.removeCallbacks(repeatTiming);
+                uploadingFile();
                 break;
             case ORDER_74H:
                 break;
             case ORDER_75H:
                 break;
             case ORDER_76H:
+                mHandler.removeCallbacks(repeatTiming);
+                handlerTonicPacks(mReceiveData);
                 break;
             case ORDER_81H:
                 handlerPictureParamConfig(mReceiveData);
@@ -1472,16 +1483,14 @@ public class SPGProtocol {
         try {
             for (int j = 0; j < num; j++) {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                baos.write((byte) filesNumber);
+                baos.write((byte) fileNames.size());
                 for (int i = 0; i <= 9; i++) {
-                    if (getFileList(i + j * 9) == null) {
-                        break;
-                    }
-                    baos.write(getFileList(i + j * 9));
+                    if ((i + j * 9) < fileNames.size())
+                        baos = getFileList(i + j * 9);
                 }
                 dataDomain = baos.toByteArray();
                 baos.close();
-                setOrder(mReceiveData[7]);
+                setOrder(ORDER_71H);
                 sendPack();
             }
         } catch (IOException e) {
@@ -1495,54 +1504,71 @@ public class SPGProtocol {
      * @param i 第i个文件
      * @return 第i个文件信息
      */
-    protected byte[] getFileList(int i) {
-        byte[] filesList = new byte[108];
-        //文件名
-        byte[] name = fileNames.get(i).getBytes();
-        //文件生成时间
-        Date date = null;
+
+    public ByteArrayOutputStream getFileList(int i) {
+        byte[] filesList = new byte[100];
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
-            date = format.parse(String.valueOf(fileTimes.get(i)));
-        } catch (ParseException e) {
-            e.printStackTrace();
-        }
-        calendar.setTime(date);
-        int year = calendar.get(Calendar.YEAR) - 2000;
-        int month = calendar.get(Calendar.MONTH) + 1;
-        int day = calendar.get(Calendar.DAY_OF_MONTH);
-        int hour = calendar.get(Calendar.HOUR);
-        int minute = calendar.get(Calendar.MINUTE);
-        int second = calendar.get(Calendar.SECOND);
-        //文件大小
-        int length = fileLengths.get(i);
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream out = new DataOutputStream(bos);
-        byte[] lengthList;
-        try {
+            //文件名
+            byte[] name = fileNames.get(i).getBytes();
+            //文件生成时间
+            Date date = null;
+            try {
+                date = format.parse(String.valueOf(fileTimes.get(i)));
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
+            calendar.setTime(date);
+            int year = calendar.get(Calendar.YEAR) - 2000;
+            int month = calendar.get(Calendar.MONTH) + 1;
+            int day = calendar.get(Calendar.DAY_OF_MONTH);
+            int hour = calendar.get(Calendar.HOUR);
+            int minute = calendar.get(Calendar.MINUTE);
+            int second = calendar.get(Calendar.SECOND);
+            //文件大小
+            int length = fileLengths.get(i);
+
+            ByteArrayOutputStream bao = new ByteArrayOutputStream();
+            DataOutputStream out = new DataOutputStream(bao);
+            byte[] lengthList;
             out.writeShort(length);
+            lengthList = bao.toByteArray();
+            out.close();
+            bao.close();
+            for (int j = 0; j < filesList.length; j++) {
+                if (j < name.length) {
+                    filesList[j] = name[j];
+                }
+            }
+            baos.write(filesList);
+            baos.write(year);
+            baos.write(month);
+            baos.write(day);
+            baos.write(hour);
+            baos.write(minute);
+            baos.write(second);
+            baos.write(lengthList);
+            baos.close();
+//            else if (j < 100) {
+//                filesList[j] = 0x00;
+//            } else if (j < 106) {
+//                filesList[100] = (byte) (year - 2000);
+//                filesList[101] = (byte) month;
+//                filesList[102] = (byte) day;
+//                filesList[103] = (byte) hour;
+//                filesList[104] = (byte) minute;
+//                filesList[105] = (byte) second;
+//            } else if (j < 108) {
+//                filesList[106] = lengthList[0];
+//                filesList[107] = lengthList[1];
+//            }
+//        }
+//        bos.close();
+
         } catch (IOException e) {
             e.printStackTrace();
         }
-        lengthList = bos.toByteArray();
-
-        for (int j = 0; j < filesList.length; j++) {
-            if (j < name.length) {
-                filesList[j] = name[j];
-            } else if (j < 100) {
-                filesList[j] = 0x00;
-            } else if (j < 106) {
-                filesList[100] = (byte) (year - 2000);
-                filesList[101] = (byte) month;
-                filesList[102] = (byte) day;
-                filesList[103] = (byte) hour;
-                filesList[104] = (byte) minute;
-                filesList[105] = (byte) second;
-            } else if (j < 108) {
-                filesList[106] = lengthList[0];
-                filesList[107] = lengthList[1];
-            }
-        }
-        return filesList;
+        return baos;
     }
 
     /**
@@ -1603,22 +1629,168 @@ public class SPGProtocol {
     }
 
     /**
-     * 上传文件
+     * 上传文件前请求
      */
-    private void uploadingFiles() {
+    private void uploadingFileRequests() {
+        originalCommandData = null;
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            for (int i = 0; i < 108; i++) {
+            for (int i = 0; i < 100; i++) {
                 baos.write(mReceiveData[i + 10]);
             }
-            String fileName = baos.toString();
+            fileName = baos.toString().trim();
             getFileNameList(fileName);
             baos.write(getByteTime(fileTime));
             baos.write(fileLength);
+            int pack_count = (fileLength / MAX_UPLOAD_IMAGE_SIZE) + 1;
+            int pack_high = pack_count / 256;
+            int pack_low = pack_count % 256;
+            baos.write((byte) pack_high);
+            baos.write((byte) pack_low);
+            dataDomain = baos.toByteArray();
+            setOrder(ORDER_73H);
+            sendPack();
+            baos.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
+        mHandler.postDelayed(repeatTiming, 3000);
+        if (repeatCountLoop == 5) mHandler.removeCallbacks(repeatTiming);
+    }
 
+    /**
+     * 装置请求上送文件 循环发送5次
+     */
+    private Runnable repeatTiming = new Runnable() {
+        @Override
+        public void run() {
+            repeatCountLoop++;
+            switch (order) {
+                case ORDER_73H:
+                    uploadingFileRequests();
+                    break;
+                case ORDER_75H:
+                    originalCommandData = mSendData;
+                    upLocalFileEnd(null);
+                    break;
+            }
+        }
+    };
+
+    /**
+     * 上传文件
+     */
+    private void uploadingFile() {
+        try {
+            int len = 0;
+            int packIndex = 0;
+            byte[] buf = new byte[MAX_UPLOAD_IMAGE_SIZE];
+            ByteArrayOutputStream names = new ByteArrayOutputStream();
+            for (int i = 0; i < 100; i++) {
+                names.write(mReceiveData[i + 10]);
+            }
+            fileName = names.toString().trim();
+            pictureFile = new File(filePath + fileName);
+            FileInputStream fis = new FileInputStream(pictureFile);
+
+            while ((len = fis.read(buf)) != -1) {
+                SystemClock.sleep(100);
+                packIndex++;
+                int pack_high = packIndex / UPLOAD_IMAGE_PACK_DIVISOR;
+                int pack_low = packIndex % UPLOAD_IMAGE_PACK_DIVISOR;
+                ByteArrayOutputStream baos;
+                baos = names;
+                baos.write((byte) pack_high);
+                baos.write((byte) pack_low);
+                baos.write(buf, 0, len);
+                dataDomain = baos.toByteArray();
+                setOrder(ORDER_74H);
+                sendPack();
+                baos.close();
+            }
+            fis.close();
+            upLocalFileEnd(names.toByteArray());
+            names.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 文件上送结束标记  75H
+     *
+     * @param data
+     */
+    private void upLocalFileEnd(byte[] data) {
+        //2秒后再发送结束标记
+        SystemClock.sleep(2000);
+        dataDomain = data;
+        setOrder(ORDER_75H);
+        sendPack();
+        mHandler.postDelayed(repeatTiming, 30000);
+        if (repeatCountLoop == 5) mHandler.removeCallbacks(repeatTiming);
+    }
+
+    /**
+     * 补包处理
+     *
+     * @param tonicPackData 补包数据
+     */
+
+    protected void handlerTonicPacks(byte[] tonicPackData) {
+        try {
+            if (tonicPackData != null) {
+                int pack_count = tonicPackData[110];
+                Log.e("需要补的包", "handlerTonicPack: " + pack_count);
+                if (pack_count > 0) {
+                    isUpLocal = true;
+                    int count = pack_count;
+                    int len = 0;
+                    byte[] buf = new byte[MAX_UPLOAD_IMAGE_SIZE];
+                    ByteArrayOutputStream names = new ByteArrayOutputStream();
+                    for (int i = 0; i < 100; i++) {
+                        names.write(mReceiveData[i + 10]);
+                    }
+                    fileName = names.toString().trim();
+                    pictureFile = new File(filePath + fileName);
+                    FileInputStream fis = new FileInputStream(pictureFile);
+                    int readCount = 0;
+                    while (count-- > 0) {
+                        byte bytePackLow = tonicPackData[112 + len * 2];
+                        int pack_high = tonicPackData[111 + len * 2];
+                        int pack_low = (bytePackLow < 0) ? (bytePackLow & 0xFF) : bytePackLow;
+                        int packIndex = pack_high * UPLOAD_IMAGE_PACK_DIVISOR + pack_low;
+                        if (packIndex > 0) {
+                            int read;
+                            while ((read = fis.read(buf)) != -1) {
+                                ByteArrayOutputStream baos;
+                                SystemClock.sleep(100);
+                                readCount++;
+                                if (packIndex == readCount) {
+                                    baos = names;
+                                    baos.write((byte) pack_high);
+                                    baos.write((byte) pack_low);
+                                    baos.write(buf, 0, read);
+                                    dataDomain = baos.toByteArray();
+                                    setOrder(ORDER_74H);
+                                    sendPack();
+                                    Log.e("补包packIndex", "tonicPack: " + packIndex + "," + buf.length);
+                                    baos.close();
+                                    break;
+                                }
+                            }
+                        }
+                        len++;
+                    }
+                    upLocalFileEnd(names.toByteArray());
+                    fis.close();
+                    names.close();
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
