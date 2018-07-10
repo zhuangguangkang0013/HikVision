@@ -380,9 +380,9 @@ public class SPGProtocol {
         sharedPreferences = context.getSharedPreferences("port", MODE_PRIVATE);
         sharedPreferences = context.getSharedPreferences("simNumber", MODE_PRIVATE);
         //初始化端口
-        Server = sharedPreferences.getString("http",null);
-        Port = sharedPreferences.getInt("port",0);
-        this.simNumber = sharedPreferences.getString("simNumber",null).getBytes();
+        Server = sharedPreferences.getString("http","192.168.144.100");
+        Port = sharedPreferences.getInt("port",9090);
+        this.simNumber = sharedPreferences.getString("simNumber", "123456").getBytes();
         addr = new InetSocketAddress(Server, Port);
         mHanlder.postDelayed(boot, 3 * 1000);
         try {
@@ -847,14 +847,12 @@ public class SPGProtocol {
                 //更改卡号 暂不知道服务器发送的卡号是纯数字还是 F?H 格式   需格式判断或询问清格式
                 simNumber = new byte[]{ mReceiveDatas[26],  mReceiveDatas[27],  mReceiveDatas[28],  mReceiveDatas[29],  mReceiveDatas[30],  mReceiveDatas[31]};
                 Log.i("更改后的IP", "receiveSuccess: "+simNumber);
-//               listenerCallBack.modifyTheHostIPPortNumbers(Server,Port,simNumber);
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.putString("http", Server);
                 editor.putInt("port", Port);
                 editor.putString("simNumber", Arrays.toString(simNumber));
                 editor.apply();
                InitUdp(Server,Port,deviceID,simNumber);
-               //TODO 需做保存处理
 
             } else {
                 dataDomain = HttpOrPortCarNumber;
@@ -1188,7 +1186,12 @@ public class SPGProtocol {
         setOrder(ORDER_83H);
         sendPack();
         if (channelNum == 1) {
-
+            if (preset != 0) {
+                listenerCallBack.setPreset(preset);
+                SystemClock.sleep(10000);
+            }
+            useChannelNum(channelNum);
+        }else  if (channelNum == 2) {
             if (preset != 0) {
                 listenerCallBack.setPreset(preset);
                 SystemClock.sleep(10000);
@@ -1203,11 +1206,13 @@ public class SPGProtocol {
      * @param mReceiveData
      */
     protected void theMainRequestFilmingShortVideo(byte[] mReceiveData) {
+
         originalCommandData = mReceiveData;
         setOrder(ORDER_93H);
         sendPack();
         Log.i(TAG, "receiveSuccess: " + mReceiveDatas[11]);
         listenerCallBack.startShortVideo(mReceiveDatas[10], mReceiveDatas[11], mReceiveDatas[12]);
+
     }
 
 
