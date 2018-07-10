@@ -1,6 +1,12 @@
 package hikvision.zhanyun.com.hikvision;
 
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -9,11 +15,14 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.Button;
 
 import com.hikvision.netsdk.HCNetSDK;
 import com.hikvision.netsdk.NET_DVR_PREVIEWINFO;
@@ -40,20 +49,17 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private int m_iLogId;
     private SPGProtocol spgProtocol;
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
+    private static final int CAMERA_REQUEST_CODE = 100;
     private String password = "admin12345";
 
-    private String cardNumber = "ZJ0001";
-            private String http = "171.221.207.59";
-
-//        private String http = "10.18.67.225";
-//    private String http = "10.18.67.225";
     //    private int httpPort = 8080;
 //        private int httpPort = 8989;
     private byte[] simNumber = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
 
     private int httpPort = 17116;
-    //        private String http = "10.18.67.225";
-//    private String http = "192.168.144.100";
+    private String http = "10.18.67.225";
+    private String cardNumber = "ZJ0001";
+    //    private String http = "192.168.144.100";
 //    private short httpPort = 9090;
     //    private int httpPort = 9898;
     int acb;
@@ -83,13 +89,14 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private int packIndex;
     private int count = -1;
     private Timer timer;
-    private String filePath = Environment.getExternalStorageDirectory()
+    private CameraPreview mPreview;
+    public static String filePath = Environment.getExternalStorageDirectory()
             .getAbsolutePath() + File.separator + "HikVisionData/";
 
     private SharedPreferences sharedPreferences;
     private SurfaceView surfaceView;
     private int m_iPort = -1;
-
+    private Button btn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,7 +105,19 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         surfaceView = findViewById(R.id.surFaceView);
         keepScreenLongLight(this);
         verifyStoragePermissions(this);
+        btn = findViewById(R.id.btn);
+        btn.setOnClickListener(new View.OnClickListener() {
+            @SuppressLint("RestrictedApi")
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent();
+                intent.putExtra("Picture", 1);
+                intent.setClass(MainActivity.this, PhonePitureActivity.class);
+                startActivityForResult(intent, REQUEST_EXTERNAL_STORAGE);
 
+
+            }
+        });
         sharedPreferences = getSharedPreferences("Root", MODE_PRIVATE);
         boolean isRoot = sharedPreferences.getBoolean("isRoot", false);
         if (!isRoot) {
@@ -154,10 +173,15 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 // 没有写的权限，去申请写的权限，会弹出对话框
                 ActivityCompat.requestPermissions(activity, PERMISSIONS_STORAGE, REQUEST_EXTERNAL_STORAGE);
             }
+            int cameraPermission = ActivityCompat.checkSelfPermission(activity,
+                    Manifest.permission.CAMERA);
+            if (cameraPermission != PackageManager.PERMISSION_GRANTED)
+                ActivityCompat.requestPermissions(activity, new String[]{Manifest.permission.CAMERA}, CAMERA_REQUEST_CODE);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
+
 
     @Override
     public void sendSuccess(byte order) {
@@ -497,9 +521,15 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         spgProtocol.uploadFile(filePath, fileName);
     }
 
+    @SuppressLint("RestrictedApi")
     @Override
     public void useChannelNumTwo(int colorSelection, int imageSize, int brightness, int contrast, int saturation) {
+        Intent intent = new Intent();
+        intent.putExtra("Picture", 1);
+        intent.setClass(MainActivity.this, PhonePitureActivity.class);
+        startActivityForResult(intent, REQUEST_EXTERNAL_STORAGE);
 
+//        spgProtocol.uploadFile(filePath, fileName);
     }
 
     @Override
@@ -555,17 +585,30 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         HCNetSDK.getInstance().NET_DVR_StopRealPlay(acb);
     }
 
+    @SuppressLint("RestrictedApi")
     @Override
     public void startShortVideo(int channel, int type, int time) {
         spgProtocol.setOrder(SPGProtocol.ORDER_93H);
         spgProtocol.sendPack();
-        String fileNames = getFileNameCriterion(1, "mp4");
-        //TODO 下发数据参数应用到配置参数，可能需要转换类型
-        hikVisionUtils.onCaptureVideo(4, channel, type, 0,
-                0, 1, 0, filePath, fileNames,
-                time * 1000);
-        spgProtocol.uploadFile(filePath, fileNames);
+
+        if (channel == 1) {
+            String fileNames = getFileNameCriterion(1, "mp4");
+            //TODO 下发数据参数应用到配置参数，可能需要转换类型
+            hikVisionUtils.onCaptureVideo(4, channel, type, 0,
+                    0, 1, 0, filePath, fileNames,
+                    time * 1000);
+            spgProtocol.uploadFile(filePath, fileNames);
+        } else if (channel == 2) {
+            Intent intent = new Intent();
+            intent.putExtra("Video", 2);
+            intent.putExtra("Time", time);
+            intent.setClass(MainActivity.this, PhonePitureActivity.class);
+            startActivityForResult(intent, REQUEST_EXTERNAL_STORAGE);
+
+
+        }
     }
+
 
     private RealPlayCallBack getRealPlayerCbf() {
         RealPlayCallBack cbf = new RealPlayCallBack() {
@@ -738,4 +781,13 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 //
 //    }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == 5) {
+            spgProtocol.uploadFile(filePath, PhonePitureActivity.fileName);
+        } else if (requestCode == 4) {
+            spgProtocol.uploadFile(filePath, PhonePitureActivity.fileNames);
+        }
+    }
 }

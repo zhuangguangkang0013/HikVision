@@ -346,6 +346,7 @@ public class SPGProtocol {
         sharedPreferences = context.getSharedPreferences(SP_PACK_NAME, MODE_PRIVATE);
 
         //初始化端口
+
         this.Server = sharedPreferences.getString(SP_SERVER, host);
         this.Port = sharedPreferences.getInt(SP_PORT, port);
         this.simNumber = simNumber != null ? sharedPreferences.getString(SP_SIM_NUMB, byteArrayToHexStr(simNumber)) : "";
@@ -360,7 +361,6 @@ public class SPGProtocol {
 
             mHandler.postDelayed(boot, 0);
             mHandler.postDelayed(TheHeartbeatPackets, 10);
-
         } catch (SocketException e) {
             e.printStackTrace();
         }
@@ -865,9 +865,7 @@ public class SPGProtocol {
                 Log.i("更改后的IP", "receiveSuccess: " + Port);
                 //更改卡号 暂不知道服务器发送的卡号是纯数字还是 F?H 格式   需格式判断或询问清格式
                 simNumber = byteArrayToHexStr(cardNumber);
-
                 Log.i("更改后的卡号", "receiveSuccess: " + simNumber);
-//               listenerCallBack.modifyTheHostIPPortNumbers(Server,Port,simNumber);
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.putString(SP_SERVER, Server);
                 editor.putInt(SP_PORT, Port);
@@ -1245,7 +1243,12 @@ public class SPGProtocol {
         setOrder(ORDER_83H);
         sendPack();
         if (channelNum == 1) {
-
+            if (preset != 0) {
+                listenerCallBack.setPreset(preset);
+                SystemClock.sleep(10000);
+            }
+            useChannelNum(channelNum);
+        }else  if (channelNum == 2) {
             if (preset != 0) {
                 listenerCallBack.setPreset(preset);
                 SystemClock.sleep(10000);
@@ -1260,11 +1263,13 @@ public class SPGProtocol {
      * @param mReceiveData
      */
     protected void theMainRequestFilmingShortVideo(byte[] mReceiveData) {
+
         originalCommandData = mReceiveData;
         setOrder(ORDER_93H);
         sendPack();
         Log.i(TAG, "receiveSuccess: " + mReceiveDatas[11]);
         listenerCallBack.startShortVideo(mReceiveDatas[10], mReceiveDatas[11], mReceiveDatas[12]);
+
     }
 
 

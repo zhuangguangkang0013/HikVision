@@ -1,5 +1,7 @@
 package hikvision.zhanyun.com.hikvision;
 
+import java.security.PublicKey;
+
 /**
  * Created by ZY004Engineer on 2018/6/12.
  */
@@ -102,4 +104,6 @@ public interface UdpListenerCallBack {
      * @param time    拍摄时长
      */
     public void startShortVideo(int channel, int type, int time);
+
+
 }
