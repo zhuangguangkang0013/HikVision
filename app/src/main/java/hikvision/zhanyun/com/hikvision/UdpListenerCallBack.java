@@ -75,4 +75,31 @@ public interface UdpListenerCallBack {
      */
     public void setPreset(int preset);
 
+    /**
+     * 修改主站IP，端口，卡号
+     *
+     * @param port      端口
+     * @param http      IP
+     * @param simNumber 卡 号
+     */
+    public void modifyTheHostIPPortNumbers(String http, int port, byte[] simNumber);
+
+    /**
+     * 启动拍摄视频
+     */
+    public void startVideo();
+
+    /**
+     * 停止拍摄视频
+     */
+    public void stopVideo();
+
+    /**
+     * 开始拍摄小视频
+     *
+     * @param channel 通道号
+     * @param type    通道类型
+     * @param time    拍摄时长
+     */
+    public void startShortVideo(int channel, int type, int time);
 }

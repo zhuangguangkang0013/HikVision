@@ -4,7 +4,6 @@ package hikvision.zhanyun.com.hikvision;
 import android.os.Environment;
 import android.os.SystemClock;
 import android.util.Log;
-import android.view.Surface;
 
 import com.hikvision.netsdk.ExceptionCallBack;
 import com.hikvision.netsdk.HCNetSDK;
@@ -12,7 +11,6 @@ import com.hikvision.netsdk.INTER_PREVIEWINFO;
 import com.hikvision.netsdk.NET_DVR_DEVICEINFO_V30;
 import com.hikvision.netsdk.NET_DVR_JPEGPARA;
 import com.hikvision.netsdk.NET_DVR_TIME;
-import com.hikvision.netsdk.RealPlayCallBack;
 
 import java.io.File;
 
@@ -27,6 +25,7 @@ public class HikVisionUtils {
     private int mLoginId = -1;
     public static String FILE_PATH = null;
     private NET_DVR_TIME netDvrTime = new NET_DVR_TIME();
+
     public static HikVisionUtils getInstance() {
 
         if (mInstance == null) {
@@ -50,6 +49,8 @@ public class HikVisionUtils {
             Log.e(TAG, "HCNetSDK init is failed!" + HCNetSDK.getInstance().NET_DVR_GetLastError());
             return false;
         }
+        HCNetSDK.getInstance().NET_DVR_SetConnectTime(5);
+        HCNetSDK.getInstance().NET_DVR_SetReconnect(10000, true);
         String logFilePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionSDKLog/";
         //nLogLevel[in] 日志的等级（默认为0）：
         // 0-表示关闭日志，1-表示只输出ERROR错误日志，
@@ -82,7 +83,7 @@ public class HikVisionUtils {
         if (iLogID < 0) {
             Log.e(TAG, "NET_DVR_Login is failed!Err:"
                     + HCNetSDK.getInstance().NET_DVR_GetLastError());
-            return -1;
+            return iLogID;
         }
 //        if (m_oNetDvrDeviceInfoV30.byChanNum > 0) {
 //            m_iStartChan = m_oNetDvrDeviceInfoV30.byStartChan;
@@ -146,6 +147,7 @@ public class HikVisionUtils {
         return timeByte;
     }
 
+
     /**
      * 终端复位
      *
@@ -175,7 +177,7 @@ public class HikVisionUtils {
     public Boolean getExceptionCbf() {
         ExceptionCallBack oExceptionCbf = new ExceptionCallBack() {
             public void fExceptionCallBack(int iType, int iUserID, int iHandle) {
-                Log.i(TAG, "recv exception, type:" + iType);
+                Log.i(TAG, "getExceptionCbf:" + iType);
             }
         };
 
@@ -188,16 +190,29 @@ public class HikVisionUtils {
      * @param orientation 九宫格数字方向
      */
     public void onPTZControl(int orientation) {
-        if (mLoginId < 0) {
-            return;
-        }
-        boolean is = HCNetSDK.getInstance().NET_DVR_PTZControl_Other(mLoginId, 1, orientation, 0);
-        if (!is) {
+
+        boolean isSuccess = HCNetSDK.getInstance().NET_DVR_PTZControl_Other(mLoginId, 1, orientation, 0);
+        if (!isSuccess) {
             Log.e(TAG, "onPTZControl: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
             return;
         }
-        SystemClock.sleep(200);
+        SystemClock.sleep(50);
         HCNetSDK.getInstance().NET_DVR_PTZControl_Other(mLoginId, 1, orientation, 1);
+    }
+
+    /**
+     * 云台巡航操作
+     *
+     * @param dwPTZCruiseCmd 操作云台巡航命令
+     * @param byCruiseRoute  巡航路径，最多支持32条路径（序号从1开始）
+     * @param byCruisePoint 巡航点，最多支持32个点（序号从1开始）
+     * @param wInput 不同巡航命令时的值不同，预置点(最大300)、时间(最大255)、速度(最大40)
+     */
+    public void onPZTCruise(int dwPTZCruiseCmd, byte byCruiseRoute, byte byCruisePoint, short wInput) {
+        boolean isSuccess = HCNetSDK.getInstance().NET_DVR_PTZCruise_Other(mLoginId, 1, dwPTZCruiseCmd, byCruiseRoute, byCruisePoint, wInput);
+        if (!isSuccess) {
+            Log.e(TAG, "onPZTCruise: " + HCNetSDK.getInstance().NET_DVR_GetLastError());
+        }
     }
 
     /**
