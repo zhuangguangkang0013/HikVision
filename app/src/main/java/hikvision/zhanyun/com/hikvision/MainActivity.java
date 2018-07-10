@@ -42,14 +42,15 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private String password = "admin12345";
     private String cardNumber = "ZJ0001";
-    //    private String http = "171.221.207.59";
+    //        private String http = "171.221.207.59";
 //        private String http = "10.18.67.225";
     private String http = "10.18.67.225";
-    private int httpPort = 17116;
-    //    private int httpPort = 8989;
+    //    private int httpPort = 8080;
+//        private int httpPort = 8989;
     private byte[] simNumber = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
-    //    private int httpPort = 17116;
-//        private String http = "10.18.67.225";
+
+    private int httpPort = 17116;
+    //        private String http = "10.18.67.225";
 //    private String http = "192.168.144.100";
 //    private short httpPort = 9090;
     //    private int httpPort = 9898;
@@ -255,33 +256,16 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ORDER_02H:
                 break;
             case SPGProtocol.ORDER_03H:
-                if (password.equals(spgProtocol.password)) {
-                    TheHeartbeatPacketsTime = spgProtocol.HeartbeatInterval;//心跳间隔
-                    SamplingIntervals = spgProtocol.SamplingInterval;//采样间隔
-                    TheSleepTime = spgProtocol.TheSleepTime;//休眠时长
-                    TheOnlineTime = spgProtocol.TheOnlineTime;//在线时长
-                    HardwareResetTime = spgProtocol.HardwareResetTime;//硬件重启时间点   //重启功能未实现
-                    CipherCertification = spgProtocol.CipherCertification;//密文认证
-                    //TODO 处理休眠
-                }
                 break;
             case SPGProtocol.ORDER_04H:
                 break;
             case SPGProtocol.ORDER_05H:
                 break;
             case SPGProtocol.ORDER_06H:
-
                 break;
             case SPGProtocol.ORDER_07H:
                 break;
             case SPGProtocol.ORDER_08H:
-                //TODO 复位功能需修改，功能应为清空配置信息
-                boolean trReturn;
-                trReturn = hikVisionUtils.terminalReduction(PTZCommand.GOTO_PRESET, 1);
-                if (!trReturn) {
-                    int LastError = hikVisionUtils.GetLastError();
-                    Log.d("LastError:", String.valueOf(LastError));
-                }
                 break;
             case SPGProtocol.ORDER_09H:
                 break;

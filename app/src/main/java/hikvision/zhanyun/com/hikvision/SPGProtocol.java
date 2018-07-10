@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -38,28 +37,28 @@ import static android.support.constraint.Constraints.TAG;
 
 public class SPGProtocol {
 
-    public static final byte ORDER_00H = 0x00;
-    public static final byte ORDER_01H = 0x01;
-    public static final byte ORDER_02H = 0x02;
-    public static final byte ORDER_03H = 0x03;
-    public static final byte ORDER_04H = 0x04;
-    public static final byte ORDER_05H = 0x05;
-    public static final byte ORDER_06H = 0x06;
-    public static final byte ORDER_07H = 0x07;
-    public static final byte ORDER_08H = 0x08;
-    public static final byte ORDER_09H = 0x09;
-    public static final byte ORDER_0AH = 0x0A;
-    public static final byte ORDER_0BH = 0x0B;
-    public static final byte ORDER_0CH = 0x0C;
-    public static final byte ORDER_0DH = 0x0D;
-    public static final byte ORDER_21H = 0x21;
-    public static final byte ORDER_30H = 0x30;
-    public static final byte ORDER_71H = 0x71;
-    public static final byte ORDER_72H = 0x72;
-    public static final byte ORDER_73H = 0x73;
-    public static final byte ORDER_74H = 0x74;
-    public static final byte ORDER_75H = 0x75;
-    public static final byte ORDER_76H = 0x76;
+    public static final byte ORDER_00H = (byte) 0x00;
+    public static final byte ORDER_01H = (byte) 0x01;
+    public static final byte ORDER_02H = (byte) 0x02;
+    public static final byte ORDER_03H = (byte) 0x03;
+    public static final byte ORDER_04H = (byte) 0x04;
+    public static final byte ORDER_05H = (byte) 0x05;
+    public static final byte ORDER_06H = (byte) 0x06;
+    public static final byte ORDER_07H = (byte) 0x07;
+    public static final byte ORDER_08H = (byte) 0x08;
+    public static final byte ORDER_09H = (byte) 0x09;
+    public static final byte ORDER_0AH = (byte) 0x0A;
+    public static final byte ORDER_0BH = (byte) 0x0B;
+    public static final byte ORDER_0CH = (byte) 0x0C;
+    public static final byte ORDER_0DH = (byte) 0x0D;
+    public static final byte ORDER_21H = (byte) 0x21;
+    public static final byte ORDER_30H = (byte) 0x30;
+    public static final byte ORDER_71H = (byte) 0x71;
+    public static final byte ORDER_72H = (byte) 0x72;
+    public static final byte ORDER_73H = (byte) 0x73;
+    public static final byte ORDER_74H = (byte) 0x74;
+    public static final byte ORDER_75H = (byte) 0x75;
+    public static final byte ORDER_76H = (byte) 0x76;
     public static final byte ORDER_81H = (byte) 0x81;
     public static final byte ORDER_82H = (byte) 0x82;
     public static final byte ORDER_83H = (byte) 0x83;
@@ -87,7 +86,7 @@ public class SPGProtocol {
     //开机联络信息 00H
     private final byte[] START_CHAR = {0x68};
     private final byte[] END_CHAR = {0x16};
-    private final byte[] VERSION = {0x01, 0x02};
+    private final byte[] VERSION = {0x01, 0x03};
 
     //校时 01H
     private final byte[] WHEN_THE_SCHOOL_VERSION = {};
@@ -132,15 +131,15 @@ public class SPGProtocol {
     //记录发送时间，接收时间
     private String dateTime;
     private String dateTimes;
-    private byte[] simNumber;
+    private String simNumber;
     //主站下发参数配置
     public byte[] password;    //密码
-    public int HeartbeatInterval;    //心跳间隔
-    public int SamplingInterval;   //采样间隔
-    public int TheSleepTime;  //休眠时长
-    public int TheOnlineTime; //在线时长时间点
-    public byte[] HardwareResetTime;    //硬件重启
-    public byte[] CipherCertification = {0x31, 0x32, 0x33, 0x34};    //密文认证
+    private long contactInterval;   //心跳间隔
+    public long samplingInterval;   //采样间隔
+    public long theSleepTime;  //休眠时长
+    public long theOnlineTime; //在线时长时间点
+    public String hardwareResetTime;    //硬件重启
+    public String cipherCertification = "1234";    //密文认证
 
     //更改主站IP
     public byte[] Http;    //主站IP
@@ -151,9 +150,9 @@ public class SPGProtocol {
     public byte[] cardNumbers;    //主站卡号
     public boolean judges;
     //返回密码错误
-    private final byte[] Password_Mistake_VERSION = {(byte) 0xFFFF};
+    private static final byte[] PASSWORD_MISTAKE_VERSION = {(byte) 0xFFFF};
     //返回主站IP端口主站卡号错误
-    private final byte[] HttpOrPortCarNumber = {0x0000};
+    private static final byte[] HTTP_OR_PORT_CAR_NUMBER = {0x0000};
     //储存接受数据
     public byte[] mReceiveDatas;
     //主站卡号
@@ -250,71 +249,39 @@ public class SPGProtocol {
     private File pictureFile;
     private Timer timer;
     private final static long ONE_MINUTE = 60 * 1000;
-    private final static long TWO_MINUTE = 2 * 1000;
+    private final static long TWO_MINUTE = 2 * 60 * 1000;
     private String terminalPassword;
     private int[] timeArray;
-    private Handler handler = new Handler();
     private int countLoop;
     private int[] presetGroup;
     private ByteArrayOutputStream scheduleBos;
+
     private Context context;
     private SharedPreferences sharedPreferences;
+    //更改主站IP地址、端口号和卡号
+    private static final String SP_PACK_NAME = "StatutePack";
+    private static final String SP_SIM_NUMB = "simNumber";
+    private static final String SP_PASSWORD = "password";
+    private static final String SP_SERVER = "http";
+    private static final String SP_PORT = "port";
+    //参数配置
+    private static final String SP_CONTACT_INTERVAL = "contactInterval";
+    private static final String SP_SAMPLING_INTERVAL = "samplingInterval";
+    private static final String SP_SLEEP_TIME = "sleepTime";
+    private static final String SP_ONLINE_TIME = "onlineTime";
+    private static final String SP_HARDWARE_RESTART_TIME_POINT = "hardwareRestartTimePoint";
+    private static final String SP_CIPHER_VERIFICATION_CODE = "cipherVerificationCode";
 
     private byte[] uploadFileData;
     private Timer upLoadFileTimer;
-    public Handler mHanlder = new Handler();
+
+    private Handler mHandler = new Handler();
+    private String requestTime;
+    private String responseTime;
 
     public void setOrder(byte order) {
         this.order = order;
         controlChar = new byte[]{order};
-    }
-
-    public int getChannelNum() {
-        return channelNum;
-    }
-
-    public int getPreset() {
-        return preset;
-    }
-
-    public int getColorSelectionOne() {
-        return colorSelectionOne;
-    }
-
-    public int getImageSizeOne() {
-        return imageSizeOne;
-    }
-
-    public int getBrightnessOne() {
-        return brightnessOne;
-    }
-
-    public int getContrastOne() {
-        return contrastOne;
-    }
-
-    public int getSaturationOne() {
-        return saturationOne;
-    }
-
-    public int getColorSelectionTwo() {
-        return colorSelectionTwo;
-    }
-
-    public int getImageSizeTwo() {
-        return imageSizeTwo;
-    }
-
-    public int getBrightnessTwo() {
-        return brightnessTwo;
-    }
-
-    public int getContrastTwo() {
-        return contrastTwo;
-    }
-
-    public int getSaturationTwo() {
-        return saturationTwo;
     }
 
     /**
@@ -364,33 +331,91 @@ public class SPGProtocol {
     /**
      * 初始化udp
      *
-     * @param id   终端号码 123456
-     * @param host 服务器地址
-     * @param port 端口
-     * @param simNumber  卡号
+     * @param id        终端号码
+     * @param host      服务器地址
+     * @param port      端口
+     * @param simNumber 卡号
      */
     public void InitUdp(final String host, final int port, String id, byte[] simNumber) {
-        Server = host;
-        Port = port;
         this.deviceID = id;
-        this.simNumber = simNumber;
-        sharedPreferences = context.getSharedPreferences("password", MODE_PRIVATE);
-        terminalPassword = sharedPreferences.getString("password", "1234");
-        sharedPreferences = context.getSharedPreferences("http", MODE_PRIVATE);
-        sharedPreferences = context.getSharedPreferences("port", MODE_PRIVATE);
-        sharedPreferences = context.getSharedPreferences("simNumber", MODE_PRIVATE);
+
+        sharedPreferences = context.getSharedPreferences(SP_PACK_NAME, MODE_PRIVATE);
+
         //初始化端口
-        Server = sharedPreferences.getString("http",null);
-        Port = sharedPreferences.getInt("port",0);
-        this.simNumber = sharedPreferences.getString("simNumber",null).getBytes();
-        addr = new InetSocketAddress(Server, Port);
-        mHanlder.postDelayed(boot, 3 * 1000);
+        this.Server = sharedPreferences.getString(SP_SERVER, host);
+        this.Port = sharedPreferences.getInt(SP_PORT, port);
+        this.simNumber = simNumber != null ? sharedPreferences.getString(SP_SIM_NUMB, byteArrayToHexStr(simNumber)) : "";
+        initConfigParam();
+        Log.e(TAG, "InitUdp: " + Arrays.toString(hexStrToByteArray(this.simNumber)));
+
         try {
+            if (socket != null) socket.close();
             socket = new DatagramSocket();
+            addr = new InetSocketAddress(Server, Port);
             receive();
+
+            mHandler.postDelayed(boot, 0);
+            mHandler.postDelayed(TheHeartbeatPackets, 10);
+
         } catch (SocketException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * 初始化配置参数
+     */
+    private void initConfigParam() {
+        //更改密码
+        this.terminalPassword = sharedPreferences.getString(SP_PASSWORD, "1234");
+        //初始参数配置
+        this.contactInterval = sharedPreferences.getLong(SP_CONTACT_INTERVAL, ONE_MINUTE);
+        this.samplingInterval = sharedPreferences.getLong(SP_SAMPLING_INTERVAL, 20 * ONE_MINUTE);
+        this.theSleepTime = sharedPreferences.getLong(SP_SLEEP_TIME, 0);
+        this.theOnlineTime = sharedPreferences.getLong(SP_ONLINE_TIME, 24 * ONE_MINUTE);
+        this.hardwareResetTime = sharedPreferences.getString(SP_HARDWARE_RESTART_TIME_POINT, "0");
+        this.cipherCertification = sharedPreferences.getString(SP_CIPHER_VERIFICATION_CODE, "1234");
+    }
+
+    /**
+     * byte[]转十六进制String
+     *
+     * @param byteArray
+     * @return
+     */
+    private static String byteArrayToHexStr(byte[] byteArray) {
+        if (byteArray == null) {
+            return null;
+        }
+        char[] hexArray = "0123456789ABCDEF".toCharArray();
+        char[] hexChars = new char[byteArray.length * 2];
+        for (int j = 0; j < byteArray.length; j++) {
+            int v = byteArray[j] & 0xFF;
+            hexChars[j * 2] = hexArray[v >>> 4];
+            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+        }
+        return new String(hexChars);
+    }
+
+    /**
+     * 十六进制String转byte[]
+     *
+     * @param str
+     * @return
+     */
+    private static byte[] hexStrToByteArray(String str) {
+        if (str == null) {
+            return null;
+        }
+        if (str.length() == 0) {
+            return new byte[0];
+        }
+        byte[] byteArray = new byte[str.length() / 2];
+        for (int i = 0; i < byteArray.length; i++) {
+            String subStr = str.substring(2 * i, 2 * i + 2);
+            byteArray[i] = ((byte) Integer.parseInt(subStr, 16));
+        }
+        return byteArray;
     }
 
     //主动开机线程
@@ -398,6 +423,7 @@ public class SPGProtocol {
         @Override
         public void run() {
             bootContactInfo();
+            mHandler.postDelayed(boot, ONE_MINUTE);
         }
     };
 
@@ -421,6 +447,7 @@ public class SPGProtocol {
         dataDomain = new byte[]{};
         setOrder(ORDER_01H);
         sendPack();
+        requestTime = listenerCallBack.getDvrTime();
     }
 
     /**
@@ -457,9 +484,7 @@ public class SPGProtocol {
      * @param queryCardNumb 主站卡号
      */
     public void queryMasterStation(byte[] ip, byte[] queryPort, byte[] queryCardNumb) {
-
         //查询端口
-        originalCommandData = null;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
             baos.write(ip);
@@ -474,18 +499,14 @@ public class SPGProtocol {
         sendPack();
     }
 
+    /**
+     * 查询终端设备时间 0DH
+     *
+     * @param queryTime 时间
+     */
     public void theQueryTime(byte[] queryTime) {
         //查询端口
-        originalCommandData = null;
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try {
-
-            baos.write(queryTime);
-            dataDomain = baos.toByteArray();
-            baos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        dataDomain = queryTime;
         setOrder(ORDER_0DH);
         sendPack();
     }
@@ -494,7 +515,6 @@ public class SPGProtocol {
      * 终端休眠通知 0CH
      */
     public void terminalSleepNotification() {
-        originalCommandData = null;
         dataDomain = NOTIFICATIONS_DORMANCY;
         setOrder(ORDER_0CH);
         sendPack();
@@ -507,7 +527,6 @@ public class SPGProtocol {
      * @param filePath 路径
      */
     public void uploadFile(String filePath, String fileName) {
-        originalCommandData = null;
         countLoop = 0;
         if (isUpLocal) return;
         isUpLocal = true;
@@ -648,13 +667,8 @@ public class SPGProtocol {
                         socket.receive(receivePacket);
                         mReceiveData = receivePacket.getData();
                         Log.e("receive的数据", "run: " + Arrays.toString(mReceiveData));
-                        if (order == ORDER_01H) {
-                            dateTimes = HikVisionUtils.getInstance().getNetDvrTime().ToString();
-                        }
                         mReceiveDatas = mReceiveData;
-                        Log.i(TAG, "run: " + mReceiveDatas[11]);
                         if (mReceiveData != null) handlerOrder(mReceiveData[7]);
-
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -671,7 +685,10 @@ public class SPGProtocol {
      * @param order 命令
      */
     private void handlerOrder(byte order) {
+        originalCommandData = null;
         ThreadPoolProxyFactory.getNormalThreadPoolProxy().remove(sendThread);
+        mHandler.removeCallbacks(TheHeartbeatPackets);
+        mHandler.postDelayed(TheHeartbeatPackets, contactInterval);
         switch (order) {
             case ORDER_00H:
                 handlerBootContactInfo(mReceiveData);
@@ -688,7 +705,7 @@ public class SPGProtocol {
             case ORDER_04H:
                 break;
             case ORDER_05H:
-                cardiacPacingInterval();
+//                cardiacPacingInterval();
                 break;
             case ORDER_06H:
                 //更改主站IP，端口，卡号
@@ -815,68 +832,59 @@ public class SPGProtocol {
      * 修改主站端口IP卡号
      */
     private void ModifyTheHostIPPortNumbers(byte[] mReceiveData) {
-        Http = new byte[]{mReceiveDatas[13], mReceiveDatas[14], mReceiveDatas[15], mReceiveDatas[16]};
-        port = new byte[]{mReceiveDatas[17], mReceiveDatas[18]};
-        Https = new byte[]{mReceiveDatas[19], mReceiveDatas[20], mReceiveDatas[21], mReceiveDatas[22]};
-        ports = new byte[]{mReceiveDatas[23], mReceiveDatas[24]};
-        cardNumber = new byte[]{mReceiveDatas[25], mReceiveDatas[26], mReceiveDatas[27], mReceiveDatas[28], mReceiveDatas[29], mReceiveDatas[30]};
-        cardNumbers = new byte[]{mReceiveDatas[31], mReceiveDatas[32], mReceiveDatas[33], mReceiveDatas[34], mReceiveDatas[35], mReceiveDatas[36],};
-        password = new byte[]{mReceiveDatas[9], mReceiveDatas[10], mReceiveDatas[11], mReceiveDatas[12],};
-        if (Arrays.equals(CipherCertification, password)) {
+        String password = getReceivePassword(mReceiveData);
+        Http = new byte[]{mReceiveData[14], mReceiveData[15], mReceiveData[16], mReceiveData[17]};
+        port = new byte[]{mReceiveData[18], mReceiveData[19]};
+        Https = new byte[]{mReceiveData[20], mReceiveData[21], mReceiveData[22], mReceiveData[23]};
+        ports = new byte[]{mReceiveData[24], mReceiveData[25]};
+        cardNumber = new byte[]{mReceiveData[26], mReceiveData[27], mReceiveData[28], mReceiveData[29], mReceiveData[30], mReceiveData[31]};
+        cardNumbers = new byte[]{mReceiveData[32], mReceiveData[33], mReceiveData[34], mReceiveData[35], mReceiveData[36], mReceiveData[37]};
+        if (terminalPassword.equals(password)) {
 
-            if (!Arrays.equals(CipherCertification, password) || !Arrays.equals(Http, Https) || !Arrays.equals(port, ports) || !Arrays.equals(cardNumber, cardNumbers)) {
+            if (terminalPassword.equals(password) && Arrays.equals(Http, Https) && Arrays.equals(port, ports) && Arrays.equals(cardNumber, cardNumbers)) {
                 dataDomain = mReceiveData;
-                //TODO 更改端口IP
                 //更改IP
-                Server = String.valueOf(mReceiveDatas[14] + "." + mReceiveData[15] + "." + mReceiveData[16] + "." + mReceiveData[17]);
+                Server = String.valueOf(toInt(mReceiveData[14]) + "." + toInt(mReceiveData[15]) + "." + toInt(mReceiveData[16]) + "." + toInt(mReceiveData[17]));
                 Log.i("更改后的IP", "receiveSuccess: " + Server);
                 //更改端口
-                short a = mReceiveDatas[18];
-                short b = mReceiveDatas[19];
-                short c = 0;
-                short d = 0;
-                if (a > b) {
-                    c = a;
-                    d = b;
-                } else {
-                    c = b;
-                    d = a;
-                }
-                Port = (short) (c * 256 + d);
+                int a = toInt(mReceiveData[18]);
+                int b = toInt(mReceiveData[19]);
+
+                Port = a * UPLOAD_IMAGE_PACK_DIVISOR + b;
                 Log.i("更改后的IP", "receiveSuccess: " + Port);
                 //更改卡号 暂不知道服务器发送的卡号是纯数字还是 F?H 格式   需格式判断或询问清格式
-                simNumber = new byte[]{ mReceiveDatas[26],  mReceiveDatas[27],  mReceiveDatas[28],  mReceiveDatas[29],  mReceiveDatas[30],  mReceiveDatas[31]};
-                Log.i("更改后的IP", "receiveSuccess: "+simNumber);
+                simNumber = byteArrayToHexStr(cardNumber);
+
+                Log.i("更改后的卡号", "receiveSuccess: " + simNumber);
 //               listenerCallBack.modifyTheHostIPPortNumbers(Server,Port,simNumber);
                 SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putString("http", Server);
-                editor.putInt("port", Port);
-                editor.putString("simNumber", Arrays.toString(simNumber));
+                editor.putString(SP_SERVER, Server);
+                editor.putInt(SP_PORT, Port);
+                editor.putString(SP_SIM_NUMB, simNumber);
                 editor.apply();
-               InitUdp(Server,Port,deviceID,simNumber);
-               //TODO 需做保存处理
-
+                InitUdp(Server, Port, deviceID, cardNumber);
             } else {
-                dataDomain = HttpOrPortCarNumber;
+                dataDomain = HTTP_OR_PORT_CAR_NUMBER;
             }
         } else {
-            dataDomain = Password_Mistake_VERSION;
+            dataDomain = PASSWORD_MISTAKE_VERSION;
         }
         setOrder(ORDER_06H);
         sendPack();
     }
+
 
     /**
      * 查询IP，端口，http
      */
     private void selectIpAndPortAndSimNumber() {
         //端口取高字节
-        byte mainVersion = (byte) ((Port & 0xFF00) >> 8);
+        byte mainVersion = (byte) (Port / UPLOAD_IMAGE_PACK_DIVISOR);
         //端口取低字节
-        byte minorVersion = (byte) (Port & 0xFF);
+        byte minorVersion = (byte) (Port % UPLOAD_IMAGE_PACK_DIVISOR);
         //高字节*256+低字节
-        byte[] portNumber = new byte[]{(byte) (mainVersion * 256 + minorVersion)};
-        Log.i(TAG, "receiveSuccess: " + portNumber);
+        byte[] portNumber = new byte[]{mainVersion, minorVersion};
+        Log.i(TAG, "receiveSuccess: " + Arrays.toString(portNumber));
         //IP
         int a, b, c, d;
         //先找到IP地址字符串中.的位置
@@ -889,25 +897,25 @@ public class SPGProtocol {
         c = Integer.parseInt(Server.substring(position2 + 1, position3));
         d = Integer.parseInt(Server.substring(position3 + 1));
         //启动
-        queryMasterStation(new byte[]{(byte) a, (byte) b, (byte) c, (byte) d}, portNumber, simNumber);
+        queryMasterStation(new byte[]{(byte) a, (byte) b, (byte) c, (byte) d}, portNumber, hexStrToByteArray(simNumber));
     }
 
     /**
      * 循环发送心跳包处理
      */
     private void cardiacPacingInterval() {
-        mHanlder.removeCallbacks(TheHeartbeatPackets);
+        mHandler.removeCallbacks(TheHeartbeatPackets);
         //判断心跳包返回的指令  如果是原指令择每隔两分钟重复发送心跳
         if (mReceiveData != null && mReceiveData[7] == SPGProtocol.ORDER_05H) {
             Log.i(TAG, "run: " + mReceiveData[7]);
-            mHanlder.postDelayed(TheHeartbeatPackets, TheHeartbeatPacketsTimes);
+            mHandler.postDelayed(TheHeartbeatPackets, TheHeartbeatPacketsTimes);
         } else {
             //否则关闭心跳包,两分钟后再重新开启定时心跳线程
-            mHanlder.removeCallbacks(TheHeartbeatPackets);
+            mHandler.removeCallbacks(TheHeartbeatPackets);
             //执行指令
             byte[] time = HikVisionUtils.getInstance().getNetDvrTimeByte();
             terminalHeartBeatInfo(time, (byte) 0x64, (byte) 0x44);
-            mHanlder.postDelayed(TheHeartbeatPackets, TheHeartbeatPacketsTimes);
+            mHandler.postDelayed(TheHeartbeatPackets, TheHeartbeatPacketsTimes);
         }
     }
 
@@ -915,6 +923,7 @@ public class SPGProtocol {
     public Runnable WhenTheSchool = new Runnable() {
         public void run() {
             schoolTime();
+            mHandler.postDelayed(this, TWO_MINUTE);
         }
     };
 
@@ -922,11 +931,12 @@ public class SPGProtocol {
      * 开机联络信息
      */
     protected void handlerBootContactInfo(byte[] mReceiveData) {
-        if (mReceiveData != null) {
-            mHanlder.removeCallbacks(boot);
-            originalCommandData = mReceiveData;
 
-            mHanlder.postDelayed(WhenTheSchool, 5000);
+        if ((toInt(mReceiveData[8]) + toInt(mReceiveData[9])) > 0) {
+            mHandler.removeCallbacks(boot);
+            mHandler.postDelayed(WhenTheSchool, 0);
+        } else {
+            mHandler.postDelayed(boot, 0);
         }
     }
 
@@ -936,13 +946,14 @@ public class SPGProtocol {
      * @param mReceiveData
      */
     protected void handlerSchoolTime(byte[] mReceiveData) {
-//        setTimer(false, TWO_MINUTE);
-        mHanlder.removeCallbacks(WhenTheSchool);
-        if (dateTime != null && dateTimes != null) {
-            Date date = new Date(dateTime);//发送请求的时间
-            Date dates = new Date(dateTimes);//接受到返回值的时间
-            int handlerOrder = getTimeDelta(date, dates);
-            if (handlerOrder < 20) {
+        responseTime = listenerCallBack.getDvrTime();
+        mHandler.removeCallbacks(WhenTheSchool);
+
+        if (requestTime != null) {
+            long requestTime1 = new Date(requestTime).getTime();
+            long responseTime1 = new Date(responseTime).getTime();
+            long result = (responseTime1 - requestTime1) / 1000;
+            if (result <= 20) {
                 boolean setTimer = listenerCallBack.setDvrTime(mReceiveData[10] + 2000,
                         mReceiveData[11],
                         mReceiveData[12],
@@ -955,29 +966,29 @@ public class SPGProtocol {
             } else {
                 listenerCallBack.onErrMsg(ERR_ORDER_01H);
             }
-            dateTime = null;
-            dateTimes = null;
+            requestTime = null;
         } else if (mReceiveData != null) {//被动校时
-            listenerCallBack.setDvrTime(mReceiveData[10] + 2000,
+            boolean isSuccess = listenerCallBack.setDvrTime(mReceiveData[10] + 2000,
                     mReceiveData[11],
                     mReceiveData[12],
                     mReceiveData[13],
                     mReceiveData[14],
                     mReceiveData[15]);
+            if (!isSuccess) return;
             //被动校时
             originalCommandData = mReceiveData;
             setOrder(ORDER_01H);
             sendPack();
         }
-        mHanlder.postDelayed(TheHeartbeatPackets, 3 * 1000);
     }
 
     //定时发送心跳包
     public Runnable TheHeartbeatPackets = new Runnable() {
         @Override
         public void run() {
-            byte[] time = HikVisionUtils.getInstance().getNetDvrTimeByte();
+            byte[] time = getByteTime(listenerCallBack.getDvrTime());
             terminalHeartBeatInfo(time, (byte) 0x64, (byte) 0x44);
+            mHandler.postDelayed(this, contactInterval);
         }
     };
 
@@ -992,11 +1003,10 @@ public class SPGProtocol {
             terminalPassword = new String(newPassword);
 
             SharedPreferences.Editor editor = sharedPreferences.edit();
-            editor.putString("password", terminalPassword);
+            editor.putString(SP_PASSWORD, terminalPassword);
             editor.apply();
             originalCommandData = mReceiveData;
         } else {
-            originalCommandData = null;
             dataDomain = TERMINAL_PWD_VERSION;
         }
         setOrder(ORDER_02H);
@@ -1007,18 +1017,57 @@ public class SPGProtocol {
      * 主站下发参数配置 03H
      */
     protected void handlerMasterStationParamConfig(byte[] mReceiveData) {
-        mReceiveDatas = mReceiveData;
-        password = new byte[]{mReceiveData[10], mReceiveData[11], mReceiveData[12], mReceiveData[13]};//密码
-        HeartbeatInterval = mReceiveData[14];//心跳间隔
-        SamplingInterval = mReceiveData[15] + mReceiveData[16];//采样间隔
-        TheSleepTime = mReceiveData[17] + mReceiveData[18];//休眠间隔
-        TheOnlineTime = mReceiveData[19] + mReceiveData[20];//在线时长
-        HardwareResetTime = new byte[]{mReceiveData[21], mReceiveData[22], mReceiveData[23]};//硬件重启时间点
-        CipherCertification = new byte[]{mReceiveData[24], mReceiveData[25], mReceiveData[26], mReceiveData[27]};//密文认证
-        //TODO 休眠，在线
-        listenerCallBack.receiveSuccess(order);
+        String password = getReceivePassword(mReceiveData);
+        if (password.equals(terminalPassword)) {
+            mReceiveDatas = mReceiveData;
+            contactInterval = getSampleTime(mReceiveData, 14, 1); //心跳间隔
+//            toInt(mReceiveData[14]) * ONE_MINUTE;
+            samplingInterval = getSampleTime(mReceiveData, 15, 2);//采样间隔
+//                    (toInt(mReceiveData[15]) + toInt(mReceiveData[16])) * ONE_MINUTE;
+            theSleepTime = getSampleTime(mReceiveData, 17, 2);//休眠间隔
+//                    mReceiveData[17] + mReceiveData[18];
+            theOnlineTime = getSampleTime(mReceiveData, 19, 2);//在线时长
+//                    mReceiveData[19] + mReceiveData[20];
+            String time = listenerCallBack.getDvrTime();
+            String[] times = time.split("/");
+            if (mReceiveData[21] != 0)
+                hardwareResetTime = times[0] + "/" + times[1] + "/" + mReceiveData[21] + " " + mReceiveData[22] + ":" + mReceiveData[23];//硬件重启时间点
+            else hardwareResetTime = "0";
+// new byte[]{mReceiveData[21], mReceiveData[22], mReceiveData[23]};
+            cipherCertification = new String(new byte[]{mReceiveData[24], mReceiveData[25], mReceiveData[26], mReceiveData[27]});//密文认证
+
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putLong(SP_CONTACT_INTERVAL, contactInterval);
+            editor.putLong(SP_SAMPLING_INTERVAL, samplingInterval);
+            editor.putLong(SP_SLEEP_TIME, theSleepTime);
+            editor.putLong(SP_ONLINE_TIME, theOnlineTime);
+            editor.putString(SP_HARDWARE_RESTART_TIME_POINT, hardwareResetTime);
+            editor.putString(SP_CIPHER_VERIFICATION_CODE, cipherCertification);
+            editor.apply();
+
+            originalCommandData = mReceiveData;
+        } else {
+            dataDomain = PASSWORD_MISTAKE_VERSION;
+        }
+        setOrder(ORDER_03H);
+        sendPack();
     }
 
+    /**
+     * 获取参数配置的时间
+     *
+     * @param data  数据
+     * @param index 指数
+     * @param numb  次数
+     * @return
+     */
+    private long getSampleTime(byte[] data, int index, int numb) {
+        long time = 0;
+        for (int i = 0; i < numb; i++) {
+            time = time + toInt(data[index + i]);
+        }
+        return time * ONE_MINUTE;
+    }
 
     /**
      * 终端复位
@@ -1028,9 +1077,8 @@ public class SPGProtocol {
         byte[] receive = new byte[]{(mReceiveData[10]), mReceiveData[11]
                 , mReceiveData[12], mReceiveData[13]};
         String NowPassword = new String(receive);
-//        String NowPassword = String.valueOf((char) mReceiveData[10]) + String.valueOf((char) mReceiveData[11])
-//                + String.valueOf((char) mReceiveData[12]) + String.valueOf((char) mReceiveData[13]);
-        if (NowPassword.equals("1234")) {
+
+        if (NowPassword.equals(terminalPassword)) {
             dataDomain = new byte[]{mReceiveData[10], mReceiveData[11],
                     mReceiveData[12], mReceiveData[13]};
             setOrder(mReceiveData[7]);
@@ -1069,8 +1117,7 @@ public class SPGProtocol {
 
                 originalCommandData = mReceiveData;
             } else {
-                originalCommandData = null;
-                dataDomain = Password_Mistake_VERSION;
+                dataDomain = PASSWORD_MISTAKE_VERSION;
             }
             setOrder(ORDER_81H);
             sendPack();
@@ -1093,7 +1140,7 @@ public class SPGProtocol {
         scheduleBos = new ByteArrayOutputStream();
         if (password.equals(terminalPassword)) {
             originalCommandData = receiveData;
-            handler.removeCallbacks(runnable);
+            mHandler.removeCallbacks(runnable);
             channelNum = receiveData[14];
             timeArray = new int[receiveData[15]];
             presetGroup = new int[receiveData[15]];
@@ -1127,14 +1174,13 @@ public class SPGProtocol {
             }
             if (delayTime == 0 && channelNum == 1)
                 listenerCallBack.setPreset(presetGroup[countLoop]);
-            if (delayTime >= 0) handler.postDelayed(runnable, delayTime);
+            if (delayTime >= 0) mHandler.postDelayed(runnable, delayTime);
             else {
                 countLoop = 0;
-                handler.postDelayed(runnable, 24 * 3600000 - (getDelayTime() - timeArray[countLoop]));
+                mHandler.postDelayed(runnable, 24 * 3600000 - (getDelayTime() - timeArray[countLoop]));
             }
         } else {
-            originalCommandData = null;
-            dataDomain = Password_Mistake_VERSION;
+            dataDomain = PASSWORD_MISTAKE_VERSION;
         }
         setOrder(ORDER_82H);
         sendPack();
@@ -1150,11 +1196,11 @@ public class SPGProtocol {
             countLoop++;
             if (countLoop == timeArray.length) {
                 countLoop = -1;
-                handler.postDelayed(this, 24 * 3600000);
+                mHandler.postDelayed(this, 24 * 3600000);
                 return;
             }
             int delayTime = timeArray[countLoop] - getDelayTime();
-            handler.postDelayed(this, delayTime);
+            mHandler.postDelayed(this, delayTime);
             if (channelNum == 1)
                 listenerCallBack.setPreset(presetGroup[countLoop]);
             Log.e("delayTime", "runnable: " + delayTime);
@@ -1338,8 +1384,7 @@ public class SPGProtocol {
             originalCommandData = mReceiveData;
             listenerCallBack.remoteAdjustmentCamera(mReceiveData[14], mReceiveData[15], mReceiveData[16]);
         } else {
-            originalCommandData = null;
-            dataDomain = Password_Mistake_VERSION;
+            dataDomain = PASSWORD_MISTAKE_VERSION;
         }
         setOrder(ORDER_88H);
         sendPack();
@@ -1351,7 +1396,6 @@ public class SPGProtocol {
     protected void queryPhotoSchedule() {
 
         try {
-            originalCommandData = null;
             if (channelNum == mReceiveData[10]) {
                 dataDomain = scheduleBos.toByteArray();
             } else {
@@ -1364,13 +1408,6 @@ public class SPGProtocol {
             e.printStackTrace();
         }
 
-    }
-
-    //计算两个日期时间差
-    private static int getTimeDelta(Date date1, Date date2) {
-        long timeDelta = (date1.getTime() - date2.getTime()) / 1000;//单位是秒
-        int secondsDelta = timeDelta > 0 ? (int) timeDelta : (int) Math.abs(timeDelta);
-        return secondsDelta;
     }
 
     /**
@@ -1584,5 +1621,11 @@ public class SPGProtocol {
 
     }
 
+    /**
+     * byte转int
+     */
+    private int toInt(byte value) {
+        return value & 0xFF;
+    }
 
 }
