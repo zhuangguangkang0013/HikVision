@@ -1,14 +1,10 @@
 package hikvision.zhanyun.com.hikvision;
 
-import android.content.Context;
-import android.os.Handler;
-
-import java.net.DatagramSocket;
-
 import android.annotation.SuppressLint;
-import android.os.Environment;
-
+import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Environment;
+import android.os.Handler;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -18,6 +14,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.text.ParseException;
@@ -160,29 +157,20 @@ public class SPGProtocol {
     public byte[] mReceiveDatas;
     //主站卡号
 
-
-    //查询主站IP，端口，卡号
-    //主站IP
-    public byte[] ip;
-    //端口号
-    public byte[] queryPort;
-    //主站卡号
-    public byte[] queryCardNumber;
-
     //主站查询终端文件列表 71H
     //获取文件属性
-    public int filesNumber;//需传输的文件个数N //
-    List<String> fileNames = new ArrayList<String>();// 文件名集合
-    List<Integer> fileLengths = new ArrayList<Integer>();// 文件大小集合
-    List<String> fileTimes = new ArrayList<String>();// 文件生成时间集合
+    private int filesNumber;//需传输的文件个数N //
+    private List<String> fileNames = new ArrayList<String>();// 文件名集合
+    private List<Integer> fileLengths = new ArrayList<Integer>();// 文件大小集合
+    private List<String> fileTimes = new ArrayList<String>();// 文件生成时间集合
     @SuppressLint("SimpleDateFormat")
-    SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-    Calendar calendar = Calendar.getInstance();
+    private SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private Calendar calendar = Calendar.getInstance();
 
     //装置请求上送文件 73H
-    String fileName;
-    Integer fileLength;
-    String fileTime;
+    private String fileName;
+    private int fileLength;
+    private String fileTime;
 
     //文件存储路径
     public String filePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "HikVisionData/";
@@ -250,14 +238,12 @@ public class SPGProtocol {
     public byte[] dataDomain;//数据域
 
     private File pictureFile;
-    private Timer timer;
     private final static long ONE_MINUTE = 60 * 1000;
     private final static long TWO_MINUTE = 2 * 60 * 1000;
     private String terminalPassword;
     private int[] timeArray;
     private int countLoop;
     private int[] presetGroup;
-    private ByteArrayOutputStream scheduleBos;
 
     private Context context;
     private SharedPreferences sharedPreferences;
@@ -274,14 +260,31 @@ public class SPGProtocol {
     private static final String SP_ONLINE_TIME = "onlineTime";
     private static final String SP_HARDWARE_RESTART_TIME_POINT = "hardwareRestartTimePoint";
     private static final String SP_CIPHER_VERIFICATION_CODE = "cipherVerificationCode";
+    //图像采集参数配置
+    //通道号1
+    private static final String SP_COLOR_SELECT_ONE = "colorSelectionOne";
+    private static final String SP_IMAGE_SIZE_ONE = "imageSizeOne";
+    private static final String SP_BRIGHTNESS_ONE = "brightnessOne";
+    private static final String SP_CONTRAST_ONE = "contrastOne";
+    private static final String SP_SATURATION_ONE = "saturationOne";
+    //通道号2
+    private static final String SP_COLOR_SELECT_TWO = "colorSelectionTwo";
+    private static final String SP_IMAGE_SIZE_TWO = "imageSizeTwo";
+    private static final String SP_BRIGHTNESS_TWO = "brightnessTwo";
+    private static final String SP_CONTRAST_TWO = "contrastTwo";
+    private static final String SP_SATURATION_TWO = "saturationTwo";
+    //拍照时间表
+    private static final String SP_PHOTO_TIME_TABLE = "photoTimeTable";
 
-    private byte[] uploadFileData;
     private Timer upLoadFileTimer;
 
     private Handler mHandler = new Handler();
     private String requestTime;
     private String responseTime;
     private int repeatCountLoop;
+    private String scheduleData;
+    private byte[] fileNameByteData;
+
 
     public void setOrder(byte order) {
         this.order = order;
@@ -379,6 +382,20 @@ public class SPGProtocol {
         this.theOnlineTime = sharedPreferences.getLong(SP_ONLINE_TIME, 24 * ONE_MINUTE);
         this.hardwareResetTime = sharedPreferences.getString(SP_HARDWARE_RESTART_TIME_POINT, "0");
         this.cipherCertification = sharedPreferences.getString(SP_CIPHER_VERIFICATION_CODE, "1234");
+        //图像采集参数配置
+        this.colorSelectionOne = sharedPreferences.getInt(SP_COLOR_SELECT_ONE, 0);
+        this.imageSizeOne = sharedPreferences.getInt(SP_IMAGE_SIZE_ONE, 1);
+        this.brightnessOne = sharedPreferences.getInt(SP_BRIGHTNESS_ONE, 50);
+        this.contrastOne = sharedPreferences.getInt(SP_CONTRAST_ONE, 50);
+        this.saturationOne = sharedPreferences.getInt(SP_SATURATION_ONE, 50);
+        this.colorSelectionTwo = sharedPreferences.getInt(SP_COLOR_SELECT_TWO, 0);
+        this.imageSizeTwo = sharedPreferences.getInt(SP_IMAGE_SIZE_TWO, 1);
+        this.brightnessTwo = sharedPreferences.getInt(SP_BRIGHTNESS_TWO, 50);
+        this.contrastTwo = sharedPreferences.getInt(SP_CONTRAST_TWO, 50);
+        this.saturationTwo = sharedPreferences.getInt(SP_SATURATION_TWO, 50);
+        //拍照时间表
+        this.scheduleData = sharedPreferences.getString(SP_PHOTO_TIME_TABLE, "");
+        if (!scheduleData.equals("")) setPhotoTimeTable(hexStrToByteArray(scheduleData));
     }
 
     /**
@@ -531,6 +548,8 @@ public class SPGProtocol {
      * @param filePath 路径
      */
     public void uploadFile(String filePath, String fileName) {
+        mHandler.removeCallbacks(TheHeartbeatPackets);
+        originalCommandData = null;
         countLoop = 0;
         if (isUpLocal) return;
         isUpLocal = true;
@@ -780,6 +799,7 @@ public class SPGProtocol {
             case ORDER_86H:
                 break;
             case ORDER_87H:
+                mHandler.removeCallbacks(repeatTiming);
                 handlerTonicPack(mReceiveData, ORDER_85H, ORDER_86H);
                 break;
             case ORDER_88H:
@@ -1124,6 +1144,20 @@ public class SPGProtocol {
                 contrastTwo = mReceiveData[22];
                 saturationTwo = mReceiveData[23];
 
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putInt(SP_COLOR_SELECT_ONE, colorSelectionOne);
+                editor.putInt(SP_IMAGE_SIZE_ONE, imageSizeOne);
+                editor.putInt(SP_BRIGHTNESS_ONE, brightnessOne);
+                editor.putInt(SP_CONTRAST_ONE, contrastOne);
+                editor.putInt(SP_SATURATION_ONE, saturationOne);
+
+                editor.putInt(SP_COLOR_SELECT_TWO, colorSelectionTwo);
+                editor.putInt(SP_IMAGE_SIZE_TWO, imageSizeTwo);
+                editor.putInt(SP_BRIGHTNESS_TWO, brightnessTwo);
+                editor.putInt(SP_CONTRAST_TWO, contrastTwo);
+                editor.putInt(SP_SATURATION_TWO, saturationTwo);
+                editor.apply();
+
                 originalCommandData = mReceiveData;
             } else {
                 dataDomain = PASSWORD_MISTAKE_VERSION;
@@ -1146,47 +1180,26 @@ public class SPGProtocol {
             listenerCallBack.onErrMsg(ORDER_82H);
             return;
         }
-        scheduleBos = new ByteArrayOutputStream();
+        ByteArrayOutputStream scheduleBos = new ByteArrayOutputStream();
         if (password.equals(terminalPassword)) {
             originalCommandData = receiveData;
-            mHandler.removeCallbacks(runnable);
             channelNum = receiveData[14];
-            timeArray = new int[receiveData[15]];
-            presetGroup = new int[receiveData[15]];
+
             scheduleBos.write(channelNum);
             scheduleBos.write(receiveData[15]);
             for (int i = 0; i < receiveData[15]; i++) {
-                presetGroup[i] = receiveData[18 + i * 3];
                 scheduleBos.write(receiveData[16 + i * 3]);
                 scheduleBos.write(receiveData[17 + i * 3]);
                 scheduleBos.write(receiveData[18 + i * 3]);
-                int hour = receiveData[16 + i * 3];
-                if (hour == 0) hour = 24;
-                timeArray[i] = (hour * 60 + receiveData[17 + i * 3]) * 60000;
-                for (int j = 0; j < timeArray.length; j++) {
-                    if (timeArray[i] < timeArray[j]) {
-                        int replaceNumb = timeArray[i];
-                        timeArray[i] = timeArray[j];
-                        timeArray[j] = replaceNumb;
-                    }
-                }
-            }
 
-
-            int delayTime = -1;
-            for (int i = 0; i < receiveData[15]; i++) {
-                delayTime = timeArray[i] - getDelayTime();
-                if (delayTime >= 0) {
-                    countLoop = i;
-                    break;
-                }
             }
-            if (delayTime == 0 && channelNum == 1)
-                listenerCallBack.setPreset(presetGroup[countLoop]);
-            if (delayTime >= 0) mHandler.postDelayed(runnable, delayTime);
-            else {
-                countLoop = 0;
-                mHandler.postDelayed(runnable, 24 * 3600000 - (getDelayTime() - timeArray[countLoop]));
+            try {
+                if (channelNum == 1) {
+                    setPhotoTimeTable(scheduleBos.toByteArray());
+                }
+                scheduleBos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         } else {
             dataDomain = PASSWORD_MISTAKE_VERSION;
@@ -1195,6 +1208,48 @@ public class SPGProtocol {
         sendPack();
     }
 
+    private void setPhotoTimeTable(byte[] data) {
+        mHandler.removeCallbacks(runnable);
+        int delayTime = -1;
+        timeArray = new int[data[1]];
+        presetGroup = new int[data[1]];
+
+        for (int i = 0; i < data[1]; i++) {
+            presetGroup[i] = data[4 + i * 3];
+
+            int hour = data[2 + i * 3];
+            if (hour == 0) hour = 24;
+            timeArray[i] = (hour * 60 + data[3 + i * 3]) * 60000;
+
+            for (int j = 0; j < timeArray.length; j++) {
+                if (timeArray[i] < timeArray[j]) {
+                    int replaceNumb = timeArray[i];
+                    timeArray[i] = timeArray[j];
+                    timeArray[j] = replaceNumb;
+                }
+            }
+
+        }
+
+        for (int i = 0; i < data[1]; i++) {
+            delayTime = timeArray[i] - getDelayTime();
+            if (delayTime >= 0) {
+                countLoop = i;
+                break;
+            }
+        }
+
+        if (delayTime >= 0) mHandler.postDelayed(runnable, delayTime);
+        else {
+            countLoop = 0;
+            mHandler.postDelayed(runnable, 24 * 3600000 - (getDelayTime() - timeArray[countLoop]));
+        }
+
+        scheduleData = byteArrayToHexStr(data);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString(SP_PHOTO_TIME_TABLE, scheduleData);
+        editor.apply();
+    }
 
     /**
      * 拍照时间表定时器
@@ -1202,16 +1257,16 @@ public class SPGProtocol {
     private Runnable runnable = new Runnable() {
         @Override
         public void run() {
+            listenerCallBack.setPreset(presetGroup[countLoop]);
             countLoop++;
             if (countLoop == timeArray.length) {
                 countLoop = -1;
                 mHandler.postDelayed(this, 24 * 3600000);
                 return;
             }
+            mHandler.removeCallbacks(this);
             int delayTime = timeArray[countLoop] - getDelayTime();
             mHandler.postDelayed(this, delayTime);
-            if (channelNum == 1)
-                listenerCallBack.setPreset(presetGroup[countLoop]);
             Log.e("delayTime", "runnable: " + delayTime);
         }
     };
@@ -1248,11 +1303,7 @@ public class SPGProtocol {
                 SystemClock.sleep(10000);
             }
             useChannelNum(channelNum);
-        }else  if (channelNum == 2) {
-            if (preset != 0) {
-                listenerCallBack.setPreset(preset);
-                SystemClock.sleep(10000);
-            }
+        } else if (channelNum == 2) {
             useChannelNum(channelNum);
         }
     }
@@ -1263,13 +1314,13 @@ public class SPGProtocol {
      * @param mReceiveData
      */
     protected void theMainRequestFilmingShortVideo(byte[] mReceiveData) {
-
+        channelNum = mReceiveData[10];
+        preset = mReceiveData[11];
         originalCommandData = mReceiveData;
         setOrder(ORDER_93H);
         sendPack();
         Log.i(TAG, "receiveSuccess: " + mReceiveDatas[11]);
         listenerCallBack.startShortVideo(mReceiveDatas[10], mReceiveDatas[11], mReceiveDatas[12]);
-
     }
 
 
@@ -1281,6 +1332,7 @@ public class SPGProtocol {
      */
     protected void handlerUploadPicture(byte order1, byte order2) {
         try {
+            mHandler.removeCallbacks(TheHeartbeatPackets);
             upLoadFileTimer.cancel();
             int len = 0;
             int packIndex = 0;
@@ -1304,6 +1356,7 @@ public class SPGProtocol {
                 Log.e("上传图片packIndex", "baleDataChar: " + packIndex + "," + buf.length);
             }
             fis.close();
+            repeatCountLoop = 0;
             //上传图片数据2秒后再发送结束标记
             stopUploadPicture(order2);
         } catch (IOException e) {
@@ -1328,6 +1381,7 @@ public class SPGProtocol {
         setOrder(order);
         sendPack();
         baos.close();
+        mHandler.postDelayed(repeatTiming, 28 * 1000);
     }
 
     /**
@@ -1381,7 +1435,7 @@ public class SPGProtocol {
                         len++;
                     }
 
-
+                    repeatCountLoop = 0;
                     stopUploadPicture(oder2);
                 }
             }
@@ -1410,20 +1464,13 @@ public class SPGProtocol {
      * 查询拍照时间表 8BH
      */
     protected void queryPhotoSchedule() {
-
-        try {
-            if (channelNum == mReceiveData[10]) {
-                dataDomain = scheduleBos.toByteArray();
-            } else {
-                dataDomain = new byte[]{0, 0};
-            }
-            setOrder(ORDER_8BH);
-            sendPack();
-            if (scheduleBos != null) scheduleBos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (mReceiveData[10] == 1) {
+            dataDomain = hexStrToByteArray(scheduleData);
+        } else {
+            dataDomain = new byte[]{2, 0};
         }
-
+        setOrder(ORDER_8BH);
+        sendPack();
     }
 
     /**
@@ -1639,10 +1686,8 @@ public class SPGProtocol {
     private void uploadingFileRequests() {
         originalCommandData = null;
         try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            for (int i = 0; i < 100; i++) {
-                baos.write(mReceiveData[i + 10]);
-            }
+            ByteArrayOutputStream baos = getFileName();
+            fileNameByteData = getFileName().toByteArray();
             fileName = baos.toString().trim();
             getFileNameList(fileName);
             baos.write(getByteTime(fileTime));
@@ -1655,30 +1700,36 @@ public class SPGProtocol {
             dataDomain = baos.toByteArray();
             setOrder(ORDER_73H);
             sendPack();
-            baos.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
         mHandler.postDelayed(repeatTiming, 3000);
-        if (repeatCountLoop == 5) mHandler.removeCallbacks(repeatTiming);
     }
 
     /**
-     * 装置请求上送文件 循环发送5次
+     * 循环发送5次
      */
     private Runnable repeatTiming = new Runnable() {
         @Override
         public void run() {
+            originalCommandData = null;
             repeatCountLoop++;
             switch (order) {
                 case ORDER_73H:
                     uploadingFileRequests();
                     break;
                 case ORDER_75H:
-                    originalCommandData = mSendData;
-                    upLocalFileEnd(null);
+                    upLocalFileEnd(fileNameByteData);
+                    break;
+                case ORDER_86H:
+                    try {
+                        stopUploadPicture(ORDER_86H);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                     break;
             }
+            if (repeatCountLoop == 5) mHandler.removeCallbacks(repeatTiming);
         }
     };
 
@@ -1690,10 +1741,7 @@ public class SPGProtocol {
             int len = 0;
             int packIndex = 0;
             byte[] buf = new byte[MAX_UPLOAD_IMAGE_SIZE];
-            ByteArrayOutputStream names = new ByteArrayOutputStream();
-            for (int i = 0; i < 100; i++) {
-                names.write(mReceiveData[i + 10]);
-            }
+            ByteArrayOutputStream names = getFileName();
             fileName = names.toString().trim();
             pictureFile = new File(filePath + fileName);
             FileInputStream fis = new FileInputStream(pictureFile);
@@ -1733,8 +1781,15 @@ public class SPGProtocol {
         dataDomain = data;
         setOrder(ORDER_75H);
         sendPack();
-        mHandler.postDelayed(repeatTiming, 30000);
-        if (repeatCountLoop == 5) mHandler.removeCallbacks(repeatTiming);
+        mHandler.postDelayed(repeatTiming, 28000);
+    }
+
+    private ByteArrayOutputStream getFileName() {
+        ByteArrayOutputStream names = new ByteArrayOutputStream();
+        for (int i = 0; i < 100; i++) {
+            names.write(mReceiveData[i + 10]);
+        }
+        return names;
     }
 
     /**
@@ -1753,10 +1808,7 @@ public class SPGProtocol {
                     int count = pack_count;
                     int len = 0;
                     byte[] buf = new byte[MAX_UPLOAD_IMAGE_SIZE];
-                    ByteArrayOutputStream names = new ByteArrayOutputStream();
-                    for (int i = 0; i < 100; i++) {
-                        names.write(mReceiveData[i + 10]);
-                    }
+                    ByteArrayOutputStream names = getFileName();
                     fileName = names.toString().trim();
                     pictureFile = new File(filePath + fileName);
                     FileInputStream fis = new FileInputStream(pictureFile);
@@ -1788,7 +1840,7 @@ public class SPGProtocol {
                         }
                         len++;
                     }
-                    upLocalFileEnd(names.toByteArray());
+                    upLocalFileEnd(getFileName().toByteArray());
                     fis.close();
                     names.close();
                 }
