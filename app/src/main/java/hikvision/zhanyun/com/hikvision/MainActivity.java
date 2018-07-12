@@ -44,10 +44,11 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private static final int CAMERA_REQUEST_CODE = 100;
     private String password = "admin12345";
     private byte[] simNumber = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
+
     private String cardNumber = "ZJ0001";
     private String http = "171.221.207.59";
-    //        private String http = "10.18.67.225";
     private int httpPort = 17116;
+    //    private String http = "10.18.67.225";
     int acb;
 
     private static String[] PERMISSIONS_STORAGE = {

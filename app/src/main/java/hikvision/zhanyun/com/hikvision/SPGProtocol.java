@@ -3,6 +3,7 @@ package hikvision.zhanyun.com.hikvision;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.icu.text.LocaleDisplayNames;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.SystemClock;
@@ -220,7 +221,8 @@ public class SPGProtocol {
 
     private boolean isUpLocal = false;//保证单一上传图片
     private final int UPLOAD_IMAGE_PACK_DIVISOR = 256;
-    private final int MAX_UPLOAD_IMAGE_SIZE = 400;
+    private final int MAX_UPLOAD_IMAGE_SIZE = 950;
+    private final int MAX_UPLOAD_FILE_SIZE =850;
     private byte[] originalCommandData;
     private byte channelNum = 0;//通道号
     private byte preset = 0;//预置点
@@ -570,10 +572,10 @@ public class SPGProtocol {
         try {
             FileInputStream fis = new FileInputStream(pictureFile);
             int pack_count;
-            if (fis.available() % MAX_UPLOAD_IMAGE_SIZE == 0)
-                pack_count = fis.available() / MAX_UPLOAD_IMAGE_SIZE;
+            if (fis.available() % MAX_UPLOAD_FILE_SIZE == 0)
+                pack_count = fis.available() / MAX_UPLOAD_FILE_SIZE;
             else
-                pack_count = fis.available() / MAX_UPLOAD_IMAGE_SIZE + 1;
+                pack_count = fis.available() / MAX_UPLOAD_FILE_SIZE + 1;
             int pack_high = pack_count / UPLOAD_IMAGE_PACK_DIVISOR;
             int pack_low = pack_count % UPLOAD_IMAGE_PACK_DIVISOR;
 
@@ -708,6 +710,7 @@ public class SPGProtocol {
      * @param order 命令
      */
     private void handlerOrder(byte order) {
+        Log.e("接收到的命令：", String.valueOf(order));
         originalCommandData = null;
         ThreadPoolProxyFactory.getNormalThreadPoolProxy().remove(sendThread);
         mHandler.removeCallbacks(TheHeartbeatPackets);
@@ -1533,18 +1536,18 @@ public class SPGProtocol {
             num = filesNumber / 9 + 1;
         }
         try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
             for (int j = 0; j < num; j++) {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                baos.write((byte) fileNames.size());
+                baos.write((byte) filesNumber);
                 for (int i = 0; i <= 9; i++) {
-                    if ((i + j * 9) < fileNames.size())
-                        baos = getFileList(i + j * 9);
+                    if ((i + j * 9) < filesNumber)
+                        baos = getFileList(baos,i + j * 9);
                 }
-                dataDomain = baos.toByteArray();
-                baos.close();
-                setOrder(ORDER_71H);
-                sendPack();
             }
+            dataDomain = baos.toByteArray();
+            baos.close();
+            setOrder(ORDER_71H);
+            sendPack();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -1557,9 +1560,10 @@ public class SPGProtocol {
      * @return 第i个文件信息
      */
 
-    public ByteArrayOutputStream getFileList(int i) {
+    public ByteArrayOutputStream getFileList(ByteArrayOutputStream baoss ,int i) {
         byte[] filesList = new byte[100];
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos=baoss;
         try {
             //文件名
             byte[] name = fileNames.get(i).getBytes();
@@ -1673,7 +1677,7 @@ public class SPGProtocol {
             if (x.isDirectory()) {
                 if (f.getName().equals(fileName)) {
                     fileLength = (int) f.length();
-                    @SuppressLint("SimpleDateFormat") String ctime = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(new Date(f.lastModified()));
+                    @SuppressLint("SimpleDateFormat") String ctime = new SimpleDateFormat("yyyy/MM/dd hh:mm:ss").format(new Date(f.lastModified()));
                     fileTime = ctime;
                 }
             }
@@ -1686,24 +1690,33 @@ public class SPGProtocol {
     private void uploadingFileRequests() {
         originalCommandData = null;
         try {
+
             ByteArrayOutputStream baos = getFileName();
+            DataOutputStream dos=new DataOutputStream(baos);
             fileNameByteData = getFileName().toByteArray();
             fileName = baos.toString().trim();
             getFileNameList(fileName);
-            baos.write(getByteTime(fileTime));
-            baos.write(fileLength);
-            int pack_count = (fileLength / MAX_UPLOAD_IMAGE_SIZE) + 1;
+            dos.write(getByteTime(fileTime));
+            dos.writeShort(fileLength);
+            int pack_count;
+            if (fileLength % MAX_UPLOAD_FILE_SIZE==0){
+                 pack_count = (fileLength / MAX_UPLOAD_FILE_SIZE);
+            }else {
+                 pack_count = (fileLength / MAX_UPLOAD_FILE_SIZE) + 1;
+            }
             int pack_high = pack_count / 256;
             int pack_low = pack_count % 256;
             baos.write((byte) pack_high);
             baos.write((byte) pack_low);
             dataDomain = baos.toByteArray();
             setOrder(ORDER_73H);
-            sendPack();
+             sendPack();
+            baos.close();
+            Log.e(TAG, "pack_high,pack_low: "+pack_high+","+pack_low +"，包的大小："+pack_count);
         } catch (IOException e) {
             e.printStackTrace();
         }
-        mHandler.postDelayed(repeatTiming, 3000);
+//        mHandler.postDelayed(repeatTiming, 3000);
     }
 
     /**
@@ -1740,7 +1753,7 @@ public class SPGProtocol {
         try {
             int len = 0;
             int packIndex = 0;
-            byte[] buf = new byte[MAX_UPLOAD_IMAGE_SIZE];
+            byte[] buf = new byte[MAX_UPLOAD_FILE_SIZE];
             ByteArrayOutputStream names = getFileName();
             fileName = names.toString().trim();
             pictureFile = new File(filePath + fileName);
@@ -1751,12 +1764,13 @@ public class SPGProtocol {
                 packIndex++;
                 int pack_high = packIndex / UPLOAD_IMAGE_PACK_DIVISOR;
                 int pack_low = packIndex % UPLOAD_IMAGE_PACK_DIVISOR;
-                ByteArrayOutputStream baos;
-                baos = names;
+                ByteArrayOutputStream baos =new ByteArrayOutputStream();
+                baos.write(names.toByteArray());
                 baos.write((byte) pack_high);
                 baos.write((byte) pack_low);
                 baos.write(buf, 0, len);
                 dataDomain = baos.toByteArray();
+                Log.e(TAG, "pack_high,pack_low: "+pack_high+","+pack_low );
                 setOrder(ORDER_74H);
                 sendPack();
                 baos.close();
@@ -1775,13 +1789,14 @@ public class SPGProtocol {
      *
      * @param data
      */
-    private void upLocalFileEnd(byte[] data) {
+    private void  upLocalFileEnd(byte[] data) {
         //2秒后再发送结束标记
         SystemClock.sleep(2000);
         dataDomain = data;
         setOrder(ORDER_75H);
         sendPack();
         mHandler.postDelayed(repeatTiming, 28000);
+        Log.e("接收到的命令：","结束"+ String.valueOf(order));
     }
 
     /**
@@ -1812,7 +1827,7 @@ public class SPGProtocol {
                     isUpLocal = true;
                     int count = pack_count;
                     int len = 0;
-                    byte[] buf = new byte[MAX_UPLOAD_IMAGE_SIZE];
+                    byte[] buf = new byte[MAX_UPLOAD_FILE_SIZE];
                     ByteArrayOutputStream names = getFileName();
                     fileName = names.toString().trim();
                     pictureFile = new File(filePath + fileName);
@@ -1826,11 +1841,11 @@ public class SPGProtocol {
                         if (packIndex > 0) {
                             int read;
                             while ((read = fis.read(buf)) != -1) {
-                                ByteArrayOutputStream baos;
+                                ByteArrayOutputStream baos=new ByteArrayOutputStream();
                                 SystemClock.sleep(100);
                                 readCount++;
                                 if (packIndex == readCount) {
-                                    baos = names;
+                                    baos.write(names.toByteArray());
                                     baos.write((byte) pack_high);
                                     baos.write((byte) pack_low);
                                     baos.write(buf, 0, read);
