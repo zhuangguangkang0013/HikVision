@@ -4,7 +4,6 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -46,8 +45,8 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private String password = "admin12345";
     private byte[] simNumber = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
     private String cardNumber = "ZJ0001";
-//    private String http="171.221.207.59";
-        private String http = "10.18.67.225";
+    private String http = "171.221.207.59";
+    //        private String http = "10.18.67.225";
     private int httpPort = 17116;
     int acb;
 
@@ -58,7 +57,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     public static String filePath = Environment.getExternalStorageDirectory()
             .getAbsolutePath() + File.separator + "HikVisionData/";
 
-    private SharedPreferences sharedPreferences;
     private SurfaceView surfaceView;
 
     private Button btn;
@@ -83,12 +81,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
             }
         });
-        sharedPreferences = getSharedPreferences("Root", MODE_PRIVATE);
-        boolean isRoot = sharedPreferences.getBoolean("isRoot", false);
-        if (!isRoot) {
-            String apkRoot = "chmod 777 " + getPackageCodePath();
-            RootCommand(apkRoot);
-        }
+
+        String apkRoot = "chmod 777 " + getPackageCodePath();
+        RootCommand(apkRoot);
 
         hikVisionUtils = HikVisionUtils.getInstance();
         Boolean isSuccess = hikVisionUtils.initSDK();
@@ -605,10 +600,9 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
      * @return 应用程序是/否获取Root权限
      */
 
-    private boolean RootCommand(String command) {
+    private void RootCommand(String command) {
         Process process = null;
         DataOutputStream os = null;
-        SharedPreferences.Editor editor = sharedPreferences.edit();
         try {
             process = Runtime.getRuntime().exec("su");
             os = new DataOutputStream(process.getOutputStream());
@@ -618,8 +612,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             process.waitFor();
         } catch (Exception e) {
             Log.d("*** DEBUG ***", "ROOT REE" + e.getMessage());
-            editor.putBoolean("isRoot", false);
-            return false;
+            return;
         } finally {
             try {
                 if (os != null) {
@@ -630,10 +623,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             }
         }
         Log.d("*** DEBUG ***", "Root SUC ");
-
-        editor.putBoolean("isRoot", true);
-        editor.apply();
-        return true;
     }
 
     /**

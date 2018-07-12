@@ -220,7 +220,7 @@ public class SPGProtocol {
 
     private boolean isUpLocal = false;//保证单一上传图片
     private final int UPLOAD_IMAGE_PACK_DIVISOR = 256;
-    private final int MAX_UPLOAD_IMAGE_SIZE = 950;
+    private final int MAX_UPLOAD_IMAGE_SIZE = 400;
     private byte[] originalCommandData;
     private byte channelNum = 0;//通道号
     private byte preset = 0;//预置点
@@ -1784,6 +1784,11 @@ public class SPGProtocol {
         mHandler.postDelayed(repeatTiming, 28000);
     }
 
+    /**
+     * 获取文件名
+     *
+     * @return
+     */
     private ByteArrayOutputStream getFileName() {
         ByteArrayOutputStream names = new ByteArrayOutputStream();
         for (int i = 0; i < 100; i++) {
