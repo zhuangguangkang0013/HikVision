@@ -57,8 +57,12 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private byte[] simNumber = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
 
     private int httpPort = 17116;
-    private String http = "10.18.67.225";
-    private String cardNumber = "ZJ0001";
+//    private String http = "10.18.67.225";
+//    private String cardNumber = "ZJ0001";
+    private String cardNumber = "ZJ0003";
+    private String http = "171.221.207.59";
+//        private String http = "10.18.67.152";
+
     //    private String http = "192.168.144.100";
 //    private short httpPort = 9090;
     //    private int httpPort = 9898;
