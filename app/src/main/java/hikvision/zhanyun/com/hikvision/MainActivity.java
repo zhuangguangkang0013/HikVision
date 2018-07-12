@@ -2,20 +2,15 @@ package hikvision.zhanyun.com.hikvision;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
 import android.os.SystemClock;
 import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.SurfaceView;
@@ -39,8 +34,6 @@ import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
-import java.util.Timer;
 
 
 public class MainActivity extends AppCompatActivity implements UdpListenerCallBack {
@@ -51,55 +44,26 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private static final int CAMERA_REQUEST_CODE = 100;
     private String password = "admin12345";
-
-    //    private int httpPort = 8080;
-//        private int httpPort = 8989;
     private byte[] simNumber = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
 
     private int httpPort = 17116;
-//    private String http = "10.18.67.225";
-//    private String cardNumber = "ZJ0001";
+    //    private String http = "10.18.67.225";
     private String cardNumber = "ZJ0003";
     private String http = "171.221.207.59";
-//        private String http = "10.18.67.152";
 
-    //    private String http = "192.168.144.100";
-//    private short httpPort = 9090;
-    //    private int httpPort = 9898;
+
     int acb;
-    //主站卡号
-    private byte[] carNumbers = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
 
-    public Handler mHanlder = new Handler();
-    //心跳包间隔
-    private int TheHeartbeatPacketsTime = 600;//秒钟
-    private int TheHeartbeatPacketsTimes = TheHeartbeatPacketsTime * 1000;
-    //采样间隔
-    private int SamplingInterval = 600;//十分钟
-    private int SamplingIntervals = SamplingInterval * 1000;
-    //休眠时长
-    private int TheSleepTime;
-    //在线时长
-    private int TheOnlineTime;
-    //硬件重启时间点
-    private byte[] HardwareResetTime;
-    //密文认证
-    public byte[] CipherCertification = {0x31, 0x32, 0x33, 0x34};
-    byte[] test = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     private static String[] PERMISSIONS_STORAGE = {
             "android.permission.READ_EXTERNAL_STORAGE",
             "android.permission.WRITE_EXTERNAL_STORAGE"};
-    private List<byte[]> fileData;
-    private int packIndex;
-    private int count = -1;
-    private Timer timer;
-    private CameraPreview mPreview;
+
     public static String filePath = Environment.getExternalStorageDirectory()
             .getAbsolutePath() + File.separator + "HikVisionData/";
 
     private SharedPreferences sharedPreferences;
     private SurfaceView surfaceView;
-    private int m_iPort = -1;
+
     private Button btn;
 
     @Override
