@@ -572,10 +572,10 @@ public class SPGProtocol {
         try {
             FileInputStream fis = new FileInputStream(pictureFile);
             int pack_count;
-            if (fis.available() % MAX_UPLOAD_FILE_SIZE == 0)
-                pack_count = fis.available() / MAX_UPLOAD_FILE_SIZE;
+            if (fis.available() % MAX_UPLOAD_IMAGE_SIZE == 0)
+                pack_count = fis.available() / MAX_UPLOAD_IMAGE_SIZE;
             else
-                pack_count = fis.available() / MAX_UPLOAD_FILE_SIZE + 1;
+                pack_count = fis.available() / MAX_UPLOAD_IMAGE_SIZE + 1;
             int pack_high = pack_count / UPLOAD_IMAGE_PACK_DIVISOR;
             int pack_low = pack_count % UPLOAD_IMAGE_PACK_DIVISOR;
 
@@ -691,7 +691,7 @@ public class SPGProtocol {
                     try {
                         socket.receive(receivePacket);
                         mReceiveData = receivePacket.getData();
-                        Log.e("receive的数据", "run: " + Arrays.toString(mReceiveData));
+                        Log.e("receive的数据", "run: " + Arrays.toString(mReceiveData).trim());
                         mReceiveDatas = mReceiveData;
                         if (mReceiveData != null) handlerOrder(mReceiveData[7]);
                     } catch (IOException e) {

@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/FFmpegAndroid/FFmpegAndroid.iml" filepath="$PROJECT_DIR$/FFmpegAndroid/FFmpegAndroid.iml" />
       <module fileurl="file://$PROJECT_DIR$/HikVision.iml" filepath="$PROJECT_DIR$/HikVision.iml" />
       <module fileurl="file://D:\Android_xm\HAIKANG\HikVision\HikVision.iml" filepath="D:\Android_xm\HAIKANG\HikVision\HikVision.iml" />
       <module fileurl="file://D:\zhanyun\HikVision\HikVisionDemo.iml" filepath="D:\zhanyun\HikVision\HikVisionDemo.iml" />
