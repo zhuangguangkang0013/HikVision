@@ -253,7 +253,7 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
         } else if (channelNum == 2) {
             different = "B";
         }
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String timeStamp = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         return cardNumber + "_" + different + "_" + "01" + "_" + timeStamp + "." + type;
     }
 }

@@ -12,11 +12,9 @@ import android.os.SystemClock;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.view.SurfaceView;
-import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.Button;
+import android.widget.Toast;
 
 import com.hikvision.netsdk.HCNetSDK;
 import com.hikvision.netsdk.NET_DVR_PREVIEWINFO;
@@ -27,12 +25,19 @@ import com.hikvision.netsdk.RealPlayCallBack;
 
 import org.MediaPlayer.PlayM4.Player;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
 
 
 public class MainActivity extends AppCompatActivity implements UdpListenerCallBack {
@@ -42,13 +47,15 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private SPGProtocol spgProtocol;
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private static final int CAMERA_REQUEST_CODE = 100;
-    private String password = "admin12345";
     private byte[] simNumber = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
 
-    private String cardNumber = "ZJ0001";
-    private String http = "171.221.207.59";
-    private int httpPort = 17116;
+    private String cardNumber;
+    private String http;
+    private int httpPort;
     //    private String http = "10.18.67.225";
+    //    private String http = "171.221.207.59";
+//    private int httpPort = 17116;
+    //private String http = "192.168.200.11";
     int acb;
 
     private static String[] PERMISSIONS_STORAGE = {
@@ -58,51 +65,93 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     public static String filePath = Environment.getExternalStorageDirectory()
             .getAbsolutePath() + File.separator + "HikVisionData/";
 
-    private SurfaceView surfaceView;
-
-    private Button btn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        surfaceView = findViewById(R.id.surFaceView);
+
         keepScreenLongLight(this);
         verifyStoragePermissions(this);
-        btn = findViewById(R.id.btn);
-        btn.setOnClickListener(new View.OnClickListener() {
-            @SuppressLint("RestrictedApi")
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent();
-                intent.putExtra("Picture", 1);
-                intent.setClass(MainActivity.this, PhonePitureActivity.class);
-                startActivityForResult(intent, REQUEST_EXTERNAL_STORAGE);
-
-
-            }
-        });
 
         String apkRoot = "chmod 777 " + getPackageCodePath();
         RootCommand(apkRoot);
-
-        hikVisionUtils = HikVisionUtils.getInstance();
-        Boolean isSuccess = hikVisionUtils.initSDK();
-        if (!isSuccess) {
-            this.finish();
-            return;
+        File file = new File(filePath);
+        if (!file.exists()) {
+            file.mkdirs();
         }
-        String address = "10.18.67.64";
-        int port = 8000;
-        String user = "admin";
-        m_iLogId = hikVisionUtils.loginNormalDevice(address, port, user, password);
 
-        if (m_iLogId < 0) {
-            return;
+        try {
+            Map<String, String> readFile = readFile();
+
+            hikVisionUtils = HikVisionUtils.getInstance();
+            hikVisionUtils.initSDK();
+            cardNumber = readFile.get("card_number");
+            http = readFile.get("server_ip");
+            httpPort = Integer.parseInt(readFile.get("server_port"));
+            String address = readFile.get("camera_ip");
+            int port = Integer.parseInt(readFile.get("camera_port"));
+            String user = readFile.get("camera_user");
+            String password = readFile.get("camera_password");
+            Log.e(TAG, "server_ip: " + http);
+            m_iLogId = hikVisionUtils.loginNormalDevice(address, port, user, password);
+            int count = 0;
+            if (m_iLogId < 0) {
+                while (true) {
+                    SystemClock.sleep(1000);
+                    count++;
+                    if (count == 5) {
+                        Toast.makeText(MainActivity.this, "摄像头设备登录失败", Toast.LENGTH_SHORT).show();
+                        break;
+                    }
+                    if (m_iLogId >= 0) {
+                        initData();
+                        break;
+                    }
+                    m_iLogId = hikVisionUtils.loginNormalDevice(address, port, user, password);
+                }
+            } else {
+                initData();
+            }
+
+        } catch (Exception e) {
+            Toast.makeText(this, "Err:配置文件错误", Toast.LENGTH_SHORT).show();
+            e.printStackTrace();
         }
-        spgProtocol = new SPGProtocol(this, this);
-        spgProtocol.InitUdp(http, httpPort, cardNumber, simNumber);
+
+
+//
+//        int port = 8000;
+//        String user = "admin";
+//        m_iLogId = hikVisionUtils.loginNormalDevice(address, port, user, password);
+
+//        if (m_iLogId < 0) {
+//            return;
+////        }
+//        spgProtocol = new SPGProtocol(this, this);
+//        spgProtocol.InitUdp(http, httpPort, cardNumber, simNumber);
 //        initView();
+    }
+
+    private void initData() {
+        if (http != null && httpPort != 0) {
+            spgProtocol = new SPGProtocol(MainActivity.this, MainActivity.this);
+            spgProtocol.InitUdp(http, httpPort, cardNumber, simNumber);
+        }
+
+    }
+
+    public Map<String, String> readFile() throws Exception {
+        //读取指定目录下的指定文件
+        InputStream in = new FileInputStream(new File(filePath + "config.ini"));
+        BufferedReader br = new BufferedReader(new InputStreamReader(in));
+        Properties props = new Properties();
+        props.load(br);
+        Map<String, String> map = new HashMap<>();
+        for (Object s : props.keySet()) {
+            map.put(s.toString(), props.getProperty(s.toString()));
+        }
+        return map;
     }
 
     /**
@@ -512,7 +561,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     @Override
     public void modifyTheHostIPPortNumbers(String http, int port, byte[] simNumber) {
         this.http = http;
-        this.httpPort = (short) port;
+        this.httpPort = port;
         this.simNumber = simNumber;
         //更改后重新初始化地址端口卡号
         spgProtocol.InitUdp(http, port, cardNumber, simNumber);
@@ -520,7 +569,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         Log.i(TAG, "ModifyTheHostIPPortNumbers: " + this.http);
         Log.i(TAG, "ModifyTheHostIPPortNumbers: " + this.httpPort);
         Log.i(TAG, "ModifyTheHostIPPortNumbers: " + this.simNumber);
-
     }
 
     @Override
@@ -565,8 +613,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             intent.putExtra("Time", time);
             intent.setClass(MainActivity.this, PhonePitureActivity.class);
             startActivityForResult(intent, REQUEST_EXTERNAL_STORAGE);
-
-
         }
     }
 
@@ -646,95 +692,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
         return cardNumber + "_" + different + "_" + "01" + "_" + time + "." + type;
     }
-
-//    private void initView() {
-//        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
-//            @Override
-//            public void surfaceCreated(SurfaceHolder holder) {
-//                surfaceView.getHolder().setFormat(PixelFormat.TRANSLUCENT);
-//                Log.i(TAG, "surface is created" + m_iPort);
-//                if (-1 == m_iPort) {
-//                    return;
-//                }
-//                Surface surface = holder.getSurface();
-//                if (true == surface.isValid()) {
-//                    if (false == Player.getInstance().setVideoWindow(m_iPort, 0, holder)) {
-//                        Log.e(TAG, "播放器设置或销毁显示区域失败!");
-//                    }
-//                }
-//            }
-
-//            @Override
-//            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-//            }
-//
-//            @Override
-//            public void surfaceDestroyed(SurfaceHolder holder) {
-//                Log.i(TAG, "Player setVideoWindow release!" + m_iPort);
-//                if (-1 == m_iPort) {
-//                    return;
-//                }
-//                if (true == holder.getSurface().isValid()) {
-//                    if (false == Player.getInstance().setVideoWindow(m_iPort, 0, null)) {
-//                        Log.e(TAG, "播放器设置或销毁显示区域失败!");
-//                    }
-//                }
-//            }
-//        });
-//    }
-//
-//    public void processRealData(int iPlayViewNo, int iDataType, byte[] pDataBuffer, int iDataSize, int iStreamMode) {
-//        if (HCNetSDK.NET_DVR_SYSHEAD == iDataType) {
-//            if (m_iPort >= 0) {
-//                return;
-//            }
-//            m_iPort = Player.getInstance().getPort();
-//            if (m_iPort == -1) {
-//                Log.e(TAG, "获取端口失败！: " + Player.getInstance().getLastError(m_iPort));
-//                return;
-//            }
-//            Log.i(TAG, "获取端口成功！: " + m_iPort);
-//            if (iDataSize > 0) {
-//                if (!Player.getInstance().setStreamOpenMode(m_iPort, iStreamMode))  //set stream mode
-//                {
-//                    Log.e(TAG, "设置流播放模式失败！");
-//                    return;
-//                }
-//                if (!Player.getInstance().openStream(m_iPort, pDataBuffer, iDataSize, 2 * 1024 * 1024)) //open stream
-//                {
-//                    Log.e(TAG, "打开流失败！");
-//                    return;
-//                }
-//                if (!Player.getInstance().play(m_iPort, surfaceView.getHolder())) {
-//                    Log.e(TAG, "播放失败！");
-//                    return;
-//                }
-//                if (!Player.getInstance().playSound(m_iPort)) {
-//                    Log.e(TAG, "以独占方式播放音频失败！失败码 :" + Player.getInstance().getLastError(m_iPort));
-//                    return;
-//                }
-//            }
-//        } else {
-//            if (!Player.getInstance().inputData(m_iPort, pDataBuffer, iDataSize)) {
-////		    		Log.e(TAG, "inputData failed with: " + Player.getInstance().getLastError(m_iPort));
-//                for (int i = 0; i < 4000 && -1 >= 0; i++) {
-//                    if (!Player.getInstance().inputData(m_iPort, pDataBuffer, iDataSize))
-//                        Log.e(TAG, "输入流数据失败: " + Player.getInstance().getLastError(m_iPort));
-//                    else
-//                        break;
-//                    try {
-//                        Thread.sleep(10);
-//                    } catch (InterruptedException e) {
-//                        // TODO Auto-generated catch block
-//                        e.printStackTrace();
-//
-//                    }
-//                }
-//            }
-//
-//        }
-//
-//    }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {

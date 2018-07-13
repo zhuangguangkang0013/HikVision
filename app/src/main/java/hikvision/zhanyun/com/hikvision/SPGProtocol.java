@@ -3,7 +3,6 @@ package hikvision.zhanyun.com.hikvision;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.icu.text.LocaleDisplayNames;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.SystemClock;
@@ -221,8 +220,8 @@ public class SPGProtocol {
 
     private boolean isUpLocal = false;//保证单一上传图片
     private final int UPLOAD_IMAGE_PACK_DIVISOR = 256;
-    private final int MAX_UPLOAD_IMAGE_SIZE = 950;
-    private final int MAX_UPLOAD_FILE_SIZE =850;
+    private final int MAX_UPLOAD_IMAGE_SIZE = 400;
+    private final int MAX_UPLOAD_FILE_SIZE = 850;
     private byte[] originalCommandData;
     private byte channelNum = 0;//通道号
     private byte preset = 0;//预置点
@@ -572,10 +571,10 @@ public class SPGProtocol {
         try {
             FileInputStream fis = new FileInputStream(pictureFile);
             int pack_count;
-            if (fis.available() % MAX_UPLOAD_FILE_SIZE == 0)
-                pack_count = fis.available() / MAX_UPLOAD_FILE_SIZE;
+            if (fis.available() % MAX_UPLOAD_IMAGE_SIZE == 0)
+                pack_count = fis.available() / MAX_UPLOAD_IMAGE_SIZE;
             else
-                pack_count = fis.available() / MAX_UPLOAD_FILE_SIZE + 1;
+                pack_count = fis.available() / MAX_UPLOAD_IMAGE_SIZE + 1;
             int pack_high = pack_count / UPLOAD_IMAGE_PACK_DIVISOR;
             int pack_low = pack_count % UPLOAD_IMAGE_PACK_DIVISOR;
 
@@ -1400,6 +1399,7 @@ public class SPGProtocol {
                 int pack_count = (tonicPackData[12] < 0) ? (tonicPackData[12] & 0xFF) : tonicPackData[12];
                 Log.e("需要补的包", "handlerTonicPack: " + pack_count);
                 if (pack_count > 0) {
+                    mHandler.removeCallbacks(TheHeartbeatPackets);
                     isUpLocal = true;
                     int count = pack_count;
                     int len = 0;
@@ -1494,7 +1494,6 @@ public class SPGProtocol {
     }
 
     /**
-     * <<<<<<< HEAD
      * 把主站下发的密码转换成String
      *
      * @param password 下发byte[]数据
@@ -1541,7 +1540,7 @@ public class SPGProtocol {
                 baos.write((byte) filesNumber);
                 for (int i = 0; i <= 9; i++) {
                     if ((i + j * 9) < filesNumber)
-                        baos = getFileList(baos,i + j * 9);
+                        baos = getFileList(baos, i + j * 9);
                 }
             }
             dataDomain = baos.toByteArray();
@@ -1560,10 +1559,10 @@ public class SPGProtocol {
      * @return 第i个文件信息
      */
 
-    public ByteArrayOutputStream getFileList(ByteArrayOutputStream baoss ,int i) {
+    public ByteArrayOutputStream getFileList(ByteArrayOutputStream baoss, int i) {
         byte[] filesList = new byte[100];
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos=baoss;
+        baos = baoss;
         try {
             //文件名
             byte[] name = fileNames.get(i).getBytes();
@@ -1692,17 +1691,17 @@ public class SPGProtocol {
         try {
 
             ByteArrayOutputStream baos = getFileName();
-            DataOutputStream dos=new DataOutputStream(baos);
+            DataOutputStream dos = new DataOutputStream(baos);
             fileNameByteData = getFileName().toByteArray();
             fileName = baos.toString().trim();
             getFileNameList(fileName);
             dos.write(getByteTime(fileTime));
             dos.writeShort(fileLength);
             int pack_count;
-            if (fileLength % MAX_UPLOAD_FILE_SIZE==0){
-                 pack_count = (fileLength / MAX_UPLOAD_FILE_SIZE);
-            }else {
-                 pack_count = (fileLength / MAX_UPLOAD_FILE_SIZE) + 1;
+            if (fileLength % MAX_UPLOAD_FILE_SIZE == 0) {
+                pack_count = (fileLength / MAX_UPLOAD_FILE_SIZE);
+            } else {
+                pack_count = (fileLength / MAX_UPLOAD_FILE_SIZE) + 1;
             }
             int pack_high = pack_count / 256;
             int pack_low = pack_count % 256;
@@ -1710,13 +1709,13 @@ public class SPGProtocol {
             baos.write((byte) pack_low);
             dataDomain = baos.toByteArray();
             setOrder(ORDER_73H);
-             sendPack();
+            sendPack();
             baos.close();
-            Log.e(TAG, "pack_high,pack_low: "+pack_high+","+pack_low +"，包的大小："+pack_count);
+            Log.e(TAG, "pack_high,pack_low: " + pack_high + "," + pack_low + "，包的大小：" + pack_count);
         } catch (IOException e) {
             e.printStackTrace();
         }
-//        mHandler.postDelayed(repeatTiming, 3000);
+        mHandler.postDelayed(repeatTiming, 3000);
     }
 
     /**
@@ -1750,12 +1749,13 @@ public class SPGProtocol {
      * 上传文件
      */
     private void uploadingFile() {
+        mHandler.removeCallbacks(TheHeartbeatPackets);
         try {
             int len = 0;
             int packIndex = 0;
             byte[] buf = new byte[MAX_UPLOAD_FILE_SIZE];
-            ByteArrayOutputStream names = getFileName();
-            fileName = names.toString().trim();
+
+            fileName = new String(fileNameByteData).trim();
             pictureFile = new File(filePath + fileName);
             FileInputStream fis = new FileInputStream(pictureFile);
 
@@ -1764,21 +1764,19 @@ public class SPGProtocol {
                 packIndex++;
                 int pack_high = packIndex / UPLOAD_IMAGE_PACK_DIVISOR;
                 int pack_low = packIndex % UPLOAD_IMAGE_PACK_DIVISOR;
-                ByteArrayOutputStream baos =new ByteArrayOutputStream();
-                baos.write(names.toByteArray());
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                baos.write(fileNameByteData);
                 baos.write((byte) pack_high);
                 baos.write((byte) pack_low);
                 baos.write(buf, 0, len);
                 dataDomain = baos.toByteArray();
-                Log.e(TAG, "pack_high,pack_low: "+pack_high+","+pack_low );
+                Log.e(TAG, "上传pack_high,pack_low: " + pack_high + "," + pack_low + ",包的大小：" + buf.length);
                 setOrder(ORDER_74H);
                 sendPack();
                 baos.close();
             }
             fis.close();
-            upLocalFileEnd(names.toByteArray());
-            names.close();
-
+            upLocalFileEnd(fileNameByteData);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -1789,14 +1787,14 @@ public class SPGProtocol {
      *
      * @param data
      */
-    private void  upLocalFileEnd(byte[] data) {
+    private void upLocalFileEnd(byte[] data) {
         //2秒后再发送结束标记
         SystemClock.sleep(2000);
         dataDomain = data;
         setOrder(ORDER_75H);
         sendPack();
         mHandler.postDelayed(repeatTiming, 28000);
-        Log.e("接收到的命令：","结束"+ String.valueOf(order));
+        Log.e("接收到的命令：", "结束" + String.valueOf(order));
     }
 
     /**
@@ -1841,7 +1839,7 @@ public class SPGProtocol {
                         if (packIndex > 0) {
                             int read;
                             while ((read = fis.read(buf)) != -1) {
-                                ByteArrayOutputStream baos=new ByteArrayOutputStream();
+                                ByteArrayOutputStream baos = new ByteArrayOutputStream();
                                 SystemClock.sleep(100);
                                 readCount++;
                                 if (packIndex == readCount) {
