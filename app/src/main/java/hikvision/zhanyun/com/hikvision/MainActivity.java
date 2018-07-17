@@ -30,6 +30,7 @@ import java.io.ByteArrayInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -48,7 +49,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private static final int CAMERA_REQUEST_CODE = 100;
     private byte[] simNumber = {(byte) 0xF1, 0x39, 0x12, 0x34, 0x56, 0x78};
-
     private String cardNumber;
     private String http;
     private int httpPort;
@@ -64,6 +64,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
     public static String filePath = Environment.getExternalStorageDirectory()
             .getAbsolutePath() + File.separator + "HikVisionData/";
+    private Map<String, String> readFile;
 
 
     @Override
@@ -71,18 +72,19 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        keepScreenLongLight(this);
-        verifyStoragePermissions(this);
-
         String apkRoot = "chmod 777 " + getPackageCodePath();
         RootCommand(apkRoot);
+
+        keepScreenLongLight(this);
+        verifyStoragePermissions(this);
         File file = new File(filePath);
         if (!file.exists()) {
             file.mkdirs();
         }
 
+
         try {
-            Map<String, String> readFile = readFile();
+            readFile = readFile();
 
             hikVisionUtils = HikVisionUtils.getInstance();
             hikVisionUtils.initSDK();
@@ -111,26 +113,15 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                     m_iLogId = hikVisionUtils.loginNormalDevice(address, port, user, password);
                 }
             } else {
+                String content = "通道1=" + address + "," + port + "," + user + "," + password;
+                save(filePath + "config.ini", content);
                 initData();
             }
-
         } catch (Exception e) {
             Toast.makeText(this, "Err:配置文件错误", Toast.LENGTH_SHORT).show();
             e.printStackTrace();
         }
 
-
-//
-//        int port = 8000;
-//        String user = "admin";
-//        m_iLogId = hikVisionUtils.loginNormalDevice(address, port, user, password);
-
-//        if (m_iLogId < 0) {
-//            return;
-////        }
-//        spgProtocol = new SPGProtocol(this, this);
-//        spgProtocol.InitUdp(http, httpPort, cardNumber, simNumber);
-//        initView();
     }
 
     private void initData() {
@@ -143,7 +134,15 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
 
     public Map<String, String> readFile() throws Exception {
         //读取指定目录下的指定文件
-        InputStream in = new FileInputStream(new File(filePath + "config.ini"));
+        String configFileName = "config.ini";
+        File file = new File(filePath + configFileName);
+        InputStream in;
+        if (file.exists()) {
+            in = new FileInputStream(file);
+        } else {
+            in = getResources().getAssets().open(configFileName);
+        }
+
         BufferedReader br = new BufferedReader(new InputStreamReader(in));
         Properties props = new Properties();
         props.load(br);
@@ -153,6 +152,24 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         }
         return map;
     }
+
+
+    /**
+     * 保存文件
+     *
+     * @param filename 文件名称
+     * @param content  文件内容
+     * @throws IOException
+     */
+    public void save(String filename, String content) throws IOException {
+
+        FileWriter fw = new FileWriter(filename, true);
+
+        fw.write("\n");
+        fw.write(content);
+        fw.close();
+    }
+
 
     /**
      * 使屏幕常亮
@@ -402,7 +419,6 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
             case SPGProtocol.ERR_ORDER_71H:
                 break;
             case SPGProtocol.ERR_ORDER_72H:
-
                 break;
             case SPGProtocol.ERR_ORDER_73H:
                 break;
@@ -468,13 +484,13 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
                 hikVisionUtils.onPTZControl(PTZCommand.PAN_LEFT);
                 break;
             case 6://向右调节1个单位
-                hikVisionUtils.onPTZControl(PTZCommand.ZOOM_IN);
+                hikVisionUtils.onPTZControl(PTZCommand.PAN_RIGHT);
                 break;
             case 7://焦距向远方调节1个单位
-                hikVisionUtils.onPTZControl(PTZCommand.ZOOM_OUT);
+                hikVisionUtils.onPTZControl(PTZCommand.ZOOM_IN);
                 break;
             case 8://焦距向近处调节1个单位
-                hikVisionUtils.onPTZControl(PTZCommand.FOCUS_FAR);
+                hikVisionUtils.onPTZControl(PTZCommand.ZOOM_OUT);
                 break;
             case 9://保存当前位置为谋预置点
                 hikVisionUtils.terminalReduction(PTZPresetCmd.SET_PRESET, preposition);
@@ -698,7 +714,7 @@ public class MainActivity extends AppCompatActivity implements UdpListenerCallBa
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode == 5) {
             spgProtocol.uploadFile(filePath, PhonePitureActivity.fileName);
-        } else if (requestCode == 4) {
+        } else if (resultCode == 4) {
             spgProtocol.uploadFile(filePath, PhonePitureActivity.fileNames);
         }
     }

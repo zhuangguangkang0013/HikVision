@@ -61,6 +61,13 @@ public class HikVisionUtils {
         return true;
     }
 
+    public void cleanUpSDK(){
+        Boolean isNetDVRCleanUp = HCNetSDK.getInstance().NET_DVR_Cleanup();
+        if (!isNetDVRCleanUp) {
+            Log.e(TAG, "HCNetSDK cleanUp is failed!" + HCNetSDK.getInstance().NET_DVR_GetLastError());
+        }
+    }
+
     /**
      * 设备登录
      *
@@ -73,10 +80,6 @@ public class HikVisionUtils {
     public int loginNormalDevice(String address, int port, String user, String password) {
         // get instance
         NET_DVR_DEVICEINFO_V30 m_oNetDvrDeviceInfoV30 = new NET_DVR_DEVICEINFO_V30();
-        if (null == m_oNetDvrDeviceInfoV30) {
-            Log.e(TAG, "HKNetDvrDeviceInfoV30 new is failed!");
-            return -1;
-        }
         // call NET_DVR_Login_v30 to login on, port 8000 as default
         int iLogID = HCNetSDK.getInstance().NET_DVR_Login_V30(address, port,
                 user, password, m_oNetDvrDeviceInfoV30);
@@ -85,19 +88,11 @@ public class HikVisionUtils {
                     + HCNetSDK.getInstance().NET_DVR_GetLastError());
             return iLogID;
         }
-//        if (m_oNetDvrDeviceInfoV30.byChanNum > 0) {
-//            m_iStartChan = m_oNetDvrDeviceInfoV30.byStartChan;
-//             m_iChanNum = m_oNetDvrDeviceInfoV30.byChanNum;
-//        } else if (m_oNetDvrDeviceInfoV30.byIPChanNum > 0) {
-//            m_iStartChan = m_oNetDvrDeviceInfoV30.byStartDChan;
-//            m_iChanNum = m_oNetDvrDeviceInfoV30.byIPChanNum
-//                    + m_oNetDvrDeviceInfoV30.byHighDChanNum * 256;
-//        }
+
         Log.i(TAG, "NET_DVR_Login is Successful!");
         mLoginId = iLogID;
         return iLogID;
     }
-
 
     /**
      * @param dwYear   年

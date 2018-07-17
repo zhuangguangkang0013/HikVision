@@ -647,9 +647,6 @@ public class SPGProtocol {
                     SystemClock.sleep(10);
                     listenerCallBack.sendSuccess(order);
                     mSendData = buf;
-                    if (order == ORDER_01H) {
-                        dateTime = HikVisionUtils.getInstance().getNetDvrTime().ToString();
-                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                     listenerCallBack.onErrMsg(ERR_SEND_UDP);
@@ -690,7 +687,7 @@ public class SPGProtocol {
                     try {
                         socket.receive(receivePacket);
                         mReceiveData = receivePacket.getData();
-                        Log.e("receive的数据", "run: " + Arrays.toString(mReceiveData));
+                        Log.e("receive的数据", "run: " + Arrays.toString(mReceiveData).trim());
                         mReceiveDatas = mReceiveData;
                         if (mReceiveData != null) handlerOrder(mReceiveData[7]);
                     } catch (IOException e) {

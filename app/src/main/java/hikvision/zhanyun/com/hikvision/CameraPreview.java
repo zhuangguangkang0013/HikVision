@@ -27,66 +27,69 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
     private String filePath = Environment.getExternalStorageDirectory()
             .getAbsolutePath() + File.separator + "HikVisionData/";
     private MainActivity mainActivity;
+    public static   String FileNames ;
+    private String filePitureName;
 
-    public void takePicture(final int picturesize) {
+    public void takePicture() {
         mCamera.takePicture(null, null, new Camera.PictureCallback() {
             @Override
             public void onPictureTaken(byte[] data, Camera camera) {
-                Camera.Parameters parameters = mCamera.getParameters();
-                switch (picturesize) {
-                    case 1://320 X 480
-                        parameters.setPictureSize(320, 240);
-                        break;
-                    case 2://640 X 480
-                        parameters.setPictureSize(640, 480);
-                        break;
-                    case 3://640 X 480
-                        parameters.setPictureSize(640, 480);
-                        break;
-                    case 4://1024 X 768
-                        parameters.setPictureSize(1024, 768);
-                        break;
-                    case 5://1024 X 768
-                        parameters.setPictureSize(1024, 768);
-                        break;
-                    case 6://1280 X 720
-                        parameters.setPictureSize(1280, 720);
-                        break;
-                    case 7://1280 X 720
-                        parameters.setPictureSize(1280, 720);
-                        break;
-                    case 8://1920 X 1088
-                        parameters.setPictureSize(1920, 1088);
-                        break;
-                    case 9://1280 X 768
-                        parameters.setPictureSize(1280, 768);
-                        break;
-                    case 10://1280 X 960
-                        parameters.setPictureSize(1280, 960);
-                        break;
-                    case 11://1600 X 1200
-                        parameters.setPictureSize(1600, 1200);
-                        break;
-                    case 12://2048 X 1536
-                        parameters.setPictureSize(2048, 1536);
-                        break;
-                    case 13://2560 X 1440
-                        parameters.setPictureSize(2560, 1440);
-                        break;
-                    case 14://2560 X 1920
-                        parameters.setPictureSize(2560, 1920);
-                        break;
-                    case 15://3600 X 2160
-                        parameters.setPictureSize(3600, 2160);
-                        break;
-                    case 16://4864 X 2736
-                        parameters.setPictureSize(4864, 2736);
-                        break;
-                    default:
-                        parameters.setPictureSize(4864, 2736);
-
-                }
-                mCamera.setParameters(parameters);
+//                Camera.Parameters parameters = mCamera.getParameters();
+//                switch (picturesize) {
+//                    case 1://320 X 480
+//                        parameters.setPictureSize(320, 240);
+//                        break;
+//                    case 2://640 X 480
+//                        parameters.setPictureSize(640, 480);
+//                        break;
+//                    case 3://640 X 480
+//                        parameters.setPictureSize(640, 480);
+//                        break;
+//                    case 4://1024 X 768
+//                        parameters.setPictureSize(1024, 768);
+//                        break;
+//                    case 5://1024 X 768
+//                        parameters.setPictureSize(1024, 768);
+//                        break;
+//                    case 6://1280 X 720
+//                        parameters.setPictureSize(1280, 720);
+//                        break;
+//                    case 7://1280 X 720
+//                        parameters.setPictureSize(1280, 720);
+//                        break;
+//                    case 8://1920 X 1088
+//                        parameters.setPictureSize(1920, 1088);
+//                        break;
+//                    case 9://1280 X 768
+//                        parameters.setPictureSize(1280, 768);
+//                        break;
+//                    case 10://1280 X 960
+//                        parameters.setPictureSize(1280, 960);
+//                        break;
+//                    case 11://1600 X 1200
+//                        parameters.setPictureSize(1600, 1200);
+//                        break;
+//                    case 12://2048 X 1536
+//                        parameters.setPictureSize(2048, 1536);
+//                        break;
+//                    case 13://2560 X 1440
+//                        parameters.setPictureSize(2560, 1440);
+//                        break;
+//                    case 14://2560 X 1920
+//                        parameters.setPictureSize(2560, 1920);
+//                        break;
+//                    case 15://3600 X 2160
+//                        parameters.setPictureSize(3600, 2160);
+//                        break;
+//                    case 16://4864 X 2736
+//                        parameters.setPictureSize(4864, 2736);
+//                        break;
+//                    default:
+//                        parameters.setPictureSize(4864, 2736);
+//
+//                }
+//                mCamera.setParameters(parameters);
+                mCamera.setDisplayOrientation(90);
                 File pictureFile = getOutputMediaFile(MEDIA_TYPE_IMAGE);
                 if (pictureFile == null) {
                     Log.d(TAG, "Error creating media file, check storage permissions");
@@ -182,15 +185,14 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
 
         mCamera = getCameraInstance();
         mMediaRecorder = new MediaRecorder();
-
         mCamera.unlock();
         mMediaRecorder.setCamera(mCamera);
-
+        mMediaRecorder.setOrientationHint(90);
         mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
         mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
 
         mMediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
-        mMediaRecorder.setVideoSize(640, 480);
+//        mMediaRecorder.setVideoSize(640, 480);
         mMediaRecorder.setOutputFile(getOutputMediaFile(MEDIA_TYPE_VIDEO).toString());
 
         mMediaRecorder.setPreviewDisplay(mHolder.getSurface());
@@ -231,13 +233,13 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
         File mediaFile;
         if (type == MEDIA_TYPE_IMAGE) {
             PhonePitureActivity.fileName = getFileNameCriterion(2, "jpg");
-            mediaFile = new File(MainActivity.filePath +
+            mediaFile = new File(PhonePitureActivity.FileVideoName  +
                     PhonePitureActivity.fileName);
+
         } else if (type == MEDIA_TYPE_VIDEO) {
             PhonePitureActivity.fileNames = getFileNameCriterion(2, "mp4");
-            mediaFile = new File(MainActivity.filePath +
+            mediaFile = new File(PhonePitureActivity.FileVideoName +
                     PhonePitureActivity.fileNames );
-            //TODO 上传视频
         } else {
             return null;
         }
