@@ -766,11 +766,12 @@ public class SPGProtocol {
                 setFileNameList();
                 break;
             case ORDER_72H:
+                mHandler.removeCallbacks(repeatTiming);
                 originalCommandData = mReceiveData;
                 setOrder(ORDER_72H);
                 sendPack();
                 repeatCountLoop = 0;
-                uploadingFileRequests();
+                mHandler.postDelayed(repeatTiming, 5000);
                 break;
             case ORDER_73H:
                 repeatCountLoop = 0;
@@ -1688,9 +1689,7 @@ public class SPGProtocol {
      * 上传文件前请求
      */
     private void uploadingFileRequests() {
-        originalCommandData = null;
         try {
-
             ByteArrayOutputStream baos = getFileName();
             DataOutputStream dos=new DataOutputStream(baos);
             fileNameByteData = getFileName().toByteArray();
@@ -1712,11 +1711,12 @@ public class SPGProtocol {
             setOrder(ORDER_73H);
              sendPack();
             baos.close();
+            if (order==ORDER_73H) originalCommandData=null;
             Log.e(TAG, "pack_high,pack_low: "+pack_high+","+pack_low +"，包的大小："+pack_count);
         } catch (IOException e) {
             e.printStackTrace();
         }
-//        mHandler.postDelayed(repeatTiming, 3000);
+        mHandler.postDelayed(repeatTiming, 3000);
     }
 
     /**
@@ -1728,6 +1728,9 @@ public class SPGProtocol {
             originalCommandData = null;
             repeatCountLoop++;
             switch (order) {
+                case ORDER_72H:
+                    uploadingFileRequests();
+                    break;
                 case ORDER_73H:
                     uploadingFileRequests();
                     break;
